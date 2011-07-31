@@ -1,0 +1,13 @@
+
+
+{TODO 1 : 
+Отработать варианты:
+OPM_SILENT для каталога
+OPM_FIND для всего
+OPM_VIEW для файлов (для camera и volume м.б. не надо?)
+OPM_QUICKVIEW не надо (если только выводить какую-нибудь информацию о файле) 
+OPM_EDIT не надо
+OPM_DESCR не надо
+OPM_TOPLEVEL не надо ?}
+
+ 

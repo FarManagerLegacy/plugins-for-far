@@ -1,0 +1,66 @@
+.Language=English,English
+
+"EOF Far"
+
+"Information"
+"Confirmation"
+"Error"
+"Warning"
+
+"EOS"
+"Camera Name"
+"Volume Name"
+
+"Path not found"
+
+"Copy"
+"Copy \"%s\" to:"
+"Copy %d items to:"
+"Copying the file\n%s\nto\n%s"
+
+"Move"
+"Move \"%s\" to:"
+"Move %d items to:"
+"Moving the file\n%s\nto\n%s"
+
+"Delete"
+"Delete files"
+"Do you wish to delete the folder\n%s"
+"Do you wish to delete the file\n%s"
+"Do you wish to delete\n%d items"
+
+"Delete folder"
+"The following folder will be deleted"
+
+""
+""
+""
+
+"Operation has been interrupted"
+"Do you really want to cancel it?"
+
+"File already exists"
+"New"
+"Existing"
+"&Remember choice"
+
+"Cannot delete the file\n%s"
+"Cannot delete the folder\n%s"
+
+"O&k"
+"&Overwrite" 
+"&All"
+"&Retry"
+"&Skip"
+"S&kip all"
+"&Cancel"
+"&Delete"
+
+"EOSFar Configuration"
+"&Add to Drive menu"
+"Drive menu &hotkey ('1'-'9'). Leave it empty to autoassign"
+"&Command line prefix:"
+"&Directory with to EDSDK.dll (without filename)"
+
+"EOS SDK initialization error"
+"Library EDSDK.dll not found"
