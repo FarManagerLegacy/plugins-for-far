@@ -1,7 +1,7 @@
 {
   PluginW.pas
 
-  Plugin API for FAR Manager 2.0 build 1481
+  Plugin API for FAR Manager 2.0 build 1807
 }
 
 {
@@ -52,7 +52,7 @@ uses Windows;
 const
   FARMANAGERVERSION_MAJOR = 2;
   FARMANAGERVERSION_MINOR = 0;
-  FARMANAGERVERSION_BUILD = 1363;
+  FARMANAGERVERSION_BUILD = 1658;
 
 type
 //TFarChar = AnsiChar;
@@ -93,7 +93,6 @@ const
   FMSG_WARNING             = $00000001;
   FMSG_ERRORTYPE           = $00000002;
   FMSG_KEEPBACKGROUND      = $00000004;
-  FMSG_DOWN                = $00000008;
   FMSG_LEFTALIGN           = $00000010;
   FMSG_ALLINONE            = $00000020;
 
@@ -165,7 +164,7 @@ const
   DIF_HISTORY               = $00040000;
   DIF_BTNNOCLOSE            = $00040000;
   DIF_CENTERTEXT            = $00040000;
-//DIF_NOTCVTUSERCONTROL     = $00040000;
+  DIF_SETSHIELD             = $00080000;
   DIF_EDITEXPAND            = $00080000;
   DIF_DROPDOWNLIST          = $00100000;
   DIF_USELASTHISTORY        = $00200000;
@@ -1051,9 +1050,9 @@ type
 { FILE_CONTROL_COMMANDS }
 
 const
-  PANEL_NONE	                = -1;
-  PANEL_ACTIVE	                = -1;
-  PANEL_PASSIVE	                = -2;
+  PANEL_NONE	                = THandle(-1);
+  PANEL_ACTIVE	                = THandle(-1);
+  PANEL_PASSIVE	                = THandle(-2);
 
 const
   FCTL_CLOSEPLUGIN              = 0;
@@ -1086,8 +1085,12 @@ const
   FCTL_GETCOLUMNWIDTHS          = 27;
   FCTL_BEGINSELECTION           = 28;
   FCTL_ENDSELECTION             = 29;
-  FCTL_SETDIRECTORIESFIRST      = 30;
+  FCTL_CLEARSELECTION           = 30;
+  FCTL_SETDIRECTORIESFIRST      = 31;
+  FCTL_GETPANELFORMAT           = 32;
+  FCTL_GETPANELHOSTFILE         = 33;
 
+  
 type
 (*
 typedef int (WINAPI *FARAPICONTROL)(
@@ -1320,7 +1323,7 @@ type
 
 const
   ACTL_GETFARVERSION        = 0;
-  ACTL_CONSOLEMODE          = 1;
+//ACTL_CONSOLEMODE          = 1;
   ACTL_GETSYSWORDDIV        = 2;
   ACTL_WAITKEY              = 3;
   ACTL_GETCOLOR             = 4;
@@ -1348,6 +1351,9 @@ const
   ACTL_SETPROGRESSSTATE     = 29;
   ACTL_SETPROGRESSVALUE     = 30;
   ACTL_QUIT                 = 31;
+  ACTL_GETFARRECT           = 32;
+  ACTL_GETCURSORPOS         = 33;
+  ACTL_SETCURSORPOS         = 34;
 
   
 { FarSystemSettings }
@@ -1428,13 +1434,14 @@ const
   FDS_SETHIDDEN         = $00000004;
   FDS_UPDATEREADONLY    = $00000008;
 
-const
-  FAR_CONSOLE_GET_MODE       = -2;
-  FAR_CONSOLE_TRIGGER        = -1;
-  FAR_CONSOLE_SET_WINDOWED   = 0;
-  FAR_CONSOLE_SET_FULLSCREEN = 1;
-  FAR_CONSOLE_WINDOWED       = 0;
-  FAR_CONSOLE_FULLSCREEN     = 1;
+
+//const
+//  FAR_CONSOLE_GET_MODE       = -2;
+//  FAR_CONSOLE_TRIGGER        = -1;
+//  FAR_CONSOLE_SET_WINDOWED   = 0;
+//  FAR_CONSOLE_SET_FULLSCREEN = 1;
+//  FAR_CONSOLE_WINDOWED       = 0;
+//  FAR_CONSOLE_FULLSCREEN     = 1;
 
 
 { FAREJECTMEDIAFLAGS }
@@ -1463,6 +1470,7 @@ const
   KSFLAGS_DISABLEOUTPUT       = $00000001;
   KSFLAGS_NOSENDKEYSTOPLUGINS = $00000002;
   KSFLAGS_REG_MULTI_SZ        = $00100000;
+  KSFLAGS_SILENTCHECK         = $00000001;
 
 (*
 struct KeySequence{
@@ -1479,13 +1487,13 @@ type
     Sequence :^DWORD;
   end;
 
-
 { FARMACROCOMMAND }
 
 const
   MCMD_LOADALL         = 0;
   MCMD_SAVEALL         = 1;
   MCMD_POSTMACROSTRING = 2;
+  MCMD_CHECKMACRO      = 4;
   MCMD_GETSTATE        = 5;
 
 { FARMACROSTATE }
@@ -1497,16 +1505,55 @@ const
   MACROSTATE_RECORDING        = 3;
   MACROSTATE_RECORDING_COMMON = 4;
 
+{FARMACROPARSEERRORCODE}
+
+const
+  MPEC_SUCCESS                =  0;
+  MPEC_UNRECOGNIZED_KEYWORD   =  1;
+  MPEC_UNRECOGNIZED_FUNCTION  =  2;
+  MPEC_FUNC_PARAM             =  3;
+  MPEC_NOT_EXPECTED_ELSE      =  4;
+  MPEC_NOT_EXPECTED_END       =  5;
+  MPEC_UNEXPECTED_EOS         =  6;
+  MPEC_EXPECTED_TOKEN         =  7;
+  MPEC_BAD_HEX_CONTROL_CHAR   =  8;
+  MPEC_BAD_CONTROL_CHAR       =  9;
+  MPEC_VAR_EXPECTED           = 10;
+  MPEC_EXPR_EXPECTED          = 11;
+  MPEC_ZEROLENGTHMACRO        = 12;
+  MPEC_INTPARSERERROR         = 13;
+  MPEC_CONTINUE_OTL           = 14;
+
 (*
-struct ActlKeyMacro{
-  int Command;
-  union{
-    struct {
-      wchar_t *SequenceText;
-      DWORD Flags;
-    } PlainText;
-    DWORD_PTR Reserved[3];
-  } Param;
+struct MacroParseResult
+{
+	DWORD ErrCode;
+	COORD ErrPos;
+	const wchar_t *ErrSrc;
+};
+*)
+type
+  PMacroParseResult = ^TMacroParseResult;
+  TMacroParseResult = record
+    ErrCode :DWORD;
+    ErrPos  :COORD;
+    ErrSrc  :PFarChar;
+  end;
+
+(*
+struct ActlKeyMacro
+{
+	int Command;
+	union
+	{
+		struct
+		{
+			const wchar_t *SequenceText;
+			DWORD Flags;
+		} PlainText;
+		struct MacroParseResult MacroResult;
+		DWORD_PTR Reserved[3];
+	} Param;
 };
 *)
 type
@@ -1521,8 +1568,9 @@ type
     Command : Integer;
 
     Param : record case Integer of
-      0 : (PlainText : TPlainText);
-      1 : (Reserved : array [0..2] of DWORD_PTR);
+      0 : (PlainText :TPlainText);
+      1 : (MacroResult :TMacroParseResult);
+      2 : (Reserved :array [0..2] of DWORD_PTR);
     end;
   end;
 
@@ -1889,6 +1937,8 @@ const
   ESPT_SETWORDDIV       = 8;
   ESPT_GETWORDDIV       = 9;
   ESPT_SHOWWHITESPACE   = 10;
+  ESPT_SETBOM           = 11;
+
 
 (*
 struct EditorSetParameter
@@ -1999,6 +2049,7 @@ const
   EOPT_CURSORBEYONDEOL    = $00000040;
   EOPT_EXPANDONLYNEWTABS  = $00000080;
   EOPT_SHOWWHITESPACE     = $00000100;
+  EOPT_BOM                = $00000200;
 
 
 { EDITOR_BLOCK_TYPES }
@@ -2428,8 +2479,11 @@ type
 
 const
   FLINK_HARDLINK         = 1;
-  FLINK_SYMLINK          = 2;
+  FLINK_JUNCTION         = 2;
   FLINK_VOLMOUNT         = 3;
+  FLINK_SYMLINKFILE      = 4;
+  FLINK_SYMLINKDIR       = 5;
+  FLINK_SYMLINK          = 6;
 
   FLINK_SHOWERRMSG       = $10000;
   FLINK_DONOTUPDATEPANEL = $20000;
@@ -2447,14 +2501,16 @@ enum CONVERTPATHMODES
 {
 	CPM_FULL,
 	CPM_REAL,
+	CPM_NATIVE,
 };
 
 typedef int (WINAPI *FARCONVERTPATH)(CONVERTPATHMODES Mode, const wchar_t *Src, wchar_t *Dest, int DestSize);
 *)
 
 const
-  CPM_FULL = 0;
-  CPM_REAL = 1;
+  CPM_FULL   = 0;
+  CPM_REAL   = 1;
+  CPM_NATIVE = 2;
 
 type
   TFarConvertPath = function(Mode :Integer {TConvertPathModes}; Src :PFarChar; Dest :PFarChar; DestSize :Integer) :Integer; stdcall;
@@ -2808,9 +2864,10 @@ const
   SM_OWNER          = 9;
   SM_COMPRESSEDSIZE = 10;
   SM_NUMLINKS       = 11;
-	SM_NUMSTREAMS     = 12;
-	SM_STREAMSSIZE    = 13;
-	SM_FULLNAME       = 14;
+  SM_NUMSTREAMS     = 12;
+  SM_STREAMSSIZE    = 13;
+  SM_FULLNAME       = 14;
+
 
 (*
 struct KeyBarTitles
@@ -3113,7 +3170,18 @@ function DlgList_SortDown(const Info :TPluginStartupInfo; hDlg :THandle; ID :Int
 function DlgList_GetItemData(const Info :TPluginStartupInfo; hDlg :THandle; ID :Integer; Index :Integer) :Integer;
 function DlgList_SetItemStrAsData(const Info :TPluginStartupInfo; hDlg :THandle; ID :Integer; Index :Integer; Str :PFarChar) :Integer;
 
+const
+  FindFileId        :TGUID = '{8C9EAD29-910F-4b24-A669-EDAFBA6ED964}';
+  CopyOverwriteId   :TGUID = '{9FBCB7E1-ACA2-475d-B40D-0F7365B632FF}';
+  FileOpenCreateId  :TGUID = '{1D07CEE2-8F4F-480a-BE93-069B4FF59A2B}';
+  FileSaveAsId      :TGUID = '{9162F965-78B8-4476-98AC-D699E5B6AFE7}';
+  MakeFolderId      :TGUID = '{FAD00DBE-3FFF-4095-9232-E1CC70C67737}';
+  FileAttrDlgId     :TGUID = '{80695D20-1085-44d6-8061-F3C41AB5569C}';
+  CopyReadOnlyId    :TGUID = '{879A8DE6-3108-4beb-80DE-6F264991CE98}';
+  CopyFilesId       :TGUID = '{FCEF11C4-5490-451d-8B4A-62FA03F52759}';
+  HardSymLinkId     :TGUID = '{5EB266F4-980D-46af-B3D2-2C50E64BCA81}';
 
+  
 {******************************************************************************}
 {******************************} implementation {******************************}
 {******************************************************************************}

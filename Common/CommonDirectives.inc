@@ -3,6 +3,10 @@
   {$UNDEF UNICODE}
   {$UNDEF UNICODE_CTRLS}
 {$ENDIF}
+{$IFDEF UNICODE}
+  {$DEFINE UNICODE_CTRLS}
+{$ENDIF}
+{$DEFINE NOT_USE_RICHEDIT}
 //******************************************************************************
 {$IFDEF Release}
   {$O+} // Optimizations

@@ -53,6 +53,11 @@ procedure WriteRegStringValue(const name, key, value: TFarString);
 procedure DeleteRegValue(const name, key: TFarString);
 procedure CopyRegValue(const name, srckey, dstkey: TFarString; copy: Boolean);
 
+function ReadRegBoolValue(const name, key: TFarString; default: Boolean): Boolean;
+procedure WriteRegBoolValue(const name, key: TFarString; value: Boolean);
+function ReadRegIntValue(const name, key: TFarString; default: Integer): Integer;
+procedure WriteRegIntValue(const name, key: TFarString; value: Integer);
+
 {$IFNDEF UNICODE}
 function DeleteRegKey_(const delkey: TFarString): Boolean;
 function CopyRegKey_(const srckey, dstkey: TFarString; recurse: Boolean): Boolean;
@@ -69,9 +74,22 @@ function OemToCharStr(const str: TFarString): TFarString;
 function CharToOemStr(const str: TFarString): TFarString;
 {$ENDIF}
 
-//function DelimiterLast0(const Str, Delimiters: KOLString): Integer;
+{$IFDEF UNICODE}
+function CharToWideChar(const str: PChar; CodePage: UINT = CP_ACP): WideString;
+{$ENDIF}
+
+function GetOk(Number: Integer): Integer;
+
+function ShowMessage(const title, text: PFarChar;
+  flags: Cardinal = 0): Integer; overload;
+function ShowMessage(const title, text: PFarChar; buttons: array of PFarChar;
+  flags: Cardinal = 0): Integer; overload;
 
 function NewID: String;
+
+function Format(const fmt: TFarString; params: array of const): TFarString;
+
+function AddEndSlash(const path: TFarString): TFarString;
 
 {$IFDEF UNICODE}
 function RegEnumValueW(hKey: HKEY; dwIndex: DWORD; lpValueName: PWideChar;
@@ -79,7 +97,26 @@ function RegEnumValueW(hKey: HKEY; dwIndex: DWORD; lpValueName: PWideChar;
   lpData: PByte; lpcbData: PDWORD): Longint; stdcall;
 {$ENDIF}
 
+function PosEx(const SubStr, S: TFarString; Offset: Cardinal = 1): Integer;
+
 implementation
+
+{$IFDEF UNICODE}
+function CharToWideChar(const str: PChar; CodePage: UINT): WideString;
+var
+  bufsize: Integer;
+begin
+  bufsize := MultiByteToWideChar(CodePage, MB_PRECOMPOSED, str, -1, nil, 0);
+  if bufsize > 1 then
+  begin
+    SetLength(Result, bufsize - 1);
+    MultiByteToWideChar(CodePage, MB_PRECOMPOSED, str, -1, PWideChar(Result),
+      bufsize);
+  end
+  else
+    Result := '';
+end;
+{$ENDIF}
 
 {$IFNDEF UNICODE}
 function OemToCharStr(const str: TFarString): TFarString;
@@ -244,6 +281,44 @@ begin
       RegCloseKey(TempKey);
     end;
   end;
+end;
+
+function ReadRegBoolValue(const name, key: TFarString; default: Boolean): Boolean;
+var
+  DefaultStr: TFarString;
+begin
+  if default then
+    DefaultStr := '1'
+  else
+    DefaultStr := '0';
+  Result := FSF.atoi(PFarChar(ReadRegStringValue(name, key, DefaultStr))) <> 0;
+end;
+
+procedure WriteRegBoolValue(const name, key: TFarString; value: Boolean);
+var
+  ValueStr: TFarString;
+begin
+  if value then
+    ValueStr := '1'
+  else
+    ValueStr := '0';
+  WriteRegStringValue(name, key, ValueStr);
+end;
+
+function ReadRegIntValue(const name, key: TFarString; default: Integer): Integer;
+var
+  DefaultStr: array [0..32] of TFarChar;
+begin
+  FSF.itoa(default, DefaultStr, 10);
+  Result := FSF.atoi(PFarChar(ReadRegStringValue(name, key, DefaultStr)));
+end;
+
+procedure WriteRegIntValue(const name, key: TFarString; value: Integer);
+var
+  ValueStr: array [0..32] of TFarChar;
+begin
+  FSF.itoa(value, ValueStr, 10);
+  WriteRegStringValue(name, key, ValueStr);
 end;
 
 procedure DeleteRegValue(const name, key: TFarString);
@@ -523,12 +598,81 @@ begin
   end;
 end;
 
+function GetOk(Number: Integer): Integer;
+begin
+  Number := Number mod 100;
+  if (Number > 10) and (Number < 20) then
+    Result := 3
+  else
+    case Number mod 10 of
+      1: Result := 0;
+      2..4: Result := 1;
+      else Result := 2;
+    end;
+end;
+
+function ShowMessage(const title, text: PFarChar;
+  flags: Cardinal): Integer;
+begin
+  Result := ShowMessage(title, text, [], flags);
+end;
+
+function ShowMessage(const title, text: PFarChar; buttons: array of PFarChar;
+  flags: Cardinal): Integer;
+var
+  str: TFarString;
+  i, ButtonsNumber: Integer;
+begin
+  str := TFarString(title) + #10 + text;
+  ButtonsNumber := Length(buttons);
+  for i := 0 to ButtonsNumber - 1 do
+    str := str + #10 + buttons[i];
+  Result := FARAPI.Message(FARAPI.ModuleNumber, FMSG_ALLINONE or flags, nil,
+    PPCharArray(@str[1]), 0, ButtonsNumber);
+end;
+
 function NewID: String;
 var
   GUID: TGUID;
 begin
   CreateGUID(GUID);
   Result := GUIDToString(GUID);
+end;
+
+function Format(const fmt: TFarString; params: array of const): TFarString;
+var
+  Buffer: array[0..1023] of TFarChar;
+  ElsArray, El: PDWORD;
+  I: Integer;
+  P: PDWORD;
+begin
+  ElsArray := nil;
+  if High(params) >= 0 then
+    GetMem(ElsArray, (High(params) + 1) * sizeof(Pointer));
+  El := ElsArray;
+  for I := 0 to High(params) do
+  begin
+    P := @params[I];
+    P := Pointer(P^);
+    El^ := DWORD(P);
+    Inc(El);
+  end;
+{$IFDEF UNICODE}
+  wvsprintfW(PFarChar(@Buffer[0]), PFarChar(fmt), Pointer(ElsArray));
+{$ELSE}
+  wvsprintfA(PFarChar(@Buffer[0]), PFarChar(fmt), Pointer(ElsArray));
+{$ENDIF}
+  Result := Buffer;
+  if ElsArray <> nil then
+    FreeMem(ElsArray);
+end;
+
+function AddEndSlash(const path: TFarString): TFarString;
+begin
+  Result := Path;
+  if (Result <> '') and
+      (Result[Length(path)] <> '\') and (Result[Length(path)] <> '/') then
+    Result := Result + cDelim;
 end;
 
 { TStringArray }
@@ -587,7 +731,7 @@ begin
   inherited;
 end;
 
-function PosEx(const SubStr, S: TFarString; Offset: Cardinal = 1): Integer;
+function PosEx(const SubStr, S: TFarString; Offset: Cardinal): Integer;
 var
   I,X: Integer;
   Len, LenSubStr: Integer;
@@ -719,13 +863,6 @@ begin
     FStringArray[Index1] := FStringArray[Index2];
     FStringArray[Index2] := p;
   end;
-end;
-
-function DelimiterLast0(const Str, Delimiters: KOLString): Integer;
-begin
-  Result := DelimiterLast(Str, Delimiters);
-  if Result = Length(Str) then
-    Result := 0;
 end;
 
 {$IFDEF UNICODE}

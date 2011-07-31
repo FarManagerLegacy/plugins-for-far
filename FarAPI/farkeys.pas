@@ -1,7 +1,7 @@
 (*
   farkeys.pas
 
-  Inside KeyName for FAR Manager 1.75 build 2626
+  Inside KeyName for FAR Manager 1.75 build 2634
 
   Copyright (c) 1996-2000 Eugene Roshal
   Copyrigth (c) 2000-2010 FAR group

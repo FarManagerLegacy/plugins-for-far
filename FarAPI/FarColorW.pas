@@ -1,7 +1,7 @@
 {
   FarColorW.pas
 
-  Colors Index for FAR Manager 2.0 build 1481
+  Colors Index for FAR Manager 2.0 build 1807
   HKCU\Software\Far\Colors\CurrentPalette
 }
 
@@ -207,7 +207,16 @@ const
    COL_WARNDIALOGLISTGRAY                = 137;
    COL_WARNDIALOGLISTSELECTEDGRAYTEXT    = 138;
 
-   COL_LASTPALETTECOLOR                  = 139;
+   COL_DIALOGDEFAULTBUTTON                      = 139;
+   COL_DIALOGSELECTEDDEFAULTBUTTON              = 140;
+   COL_DIALOGHIGHLIGHTDEFAULTBUTTON             = 141;
+   COL_DIALOGHIGHLIGHTSELECTEDDEFAULTBUTTON     = 142;
+   COL_WARNDIALOGDEFAULTBUTTON                  = 143;
+   COL_WARNDIALOGSELECTEDDEFAULTBUTTON          = 144;
+   COL_WARNDIALOGHIGHLIGHTDEFAULTBUTTON         = 145;
+   COL_WARNDIALOGHIGHLIGHTSELECTEDDEFAULTBUTTON = 146;
+
+   COL_LASTPALETTECOLOR                  = 147;
 
 implementation
 end.

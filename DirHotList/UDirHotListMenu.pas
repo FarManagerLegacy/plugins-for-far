@@ -129,7 +129,7 @@ begin
           WriteRegStringValue(cOrder, SubKey, MenuOrder.AsString);
         end;
         WriteRegStringValue('', SubKey + cDelim +
-          MenuOrder.StringArray[Index], MenuDlg.ItemData[2]);
+          MenuOrder.StringArray[Index], MenuDlg.ItemTextData[2]);
       end;
     finally
       MenuDlg.Free;
@@ -182,7 +182,7 @@ begin
           WriteRegStringValue(cOrder, SubKey, MenuOrder.AsString);
         end;
         WriteRegStringValue(MenuOrder.StringArray[Index], SubKey,
-          MenuDlg.ItemData[2] + cDivChar + MenuDlg.ItemData[4]);
+          MenuDlg.ItemTextData[2] + cDivChar + MenuDlg.ItemTextData[4]);
       end;
     finally
       MenuDlg.Free;

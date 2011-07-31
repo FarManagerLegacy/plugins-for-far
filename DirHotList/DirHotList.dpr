@@ -5,13 +5,11 @@ library DirHotList;
 {%ToDo 'DirHotList.todo'}
 
 uses
-  UTypes,
-  UDialogs,
-  UMenu,
-  UUtils,
   UExports in 'UExports.pas',
   ULang in 'ULang.pas',
   UDirHotListMenu in 'UDirHotListMenu.pas';
+
+{$R versioninfo.res}
 
 begin
 end.
