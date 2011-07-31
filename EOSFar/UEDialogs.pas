@@ -9,6 +9,7 @@ interface
 
 uses
   Windows,
+  Kol,
 {$IFDEF UNICODE}
   PluginW,
 {$ELSE}
@@ -59,7 +60,7 @@ var
 implementation
 
 uses
-  UCanon, SysUtils;
+  UCanon;
 
 { TOverDlg }
 
@@ -228,7 +229,8 @@ begin
         PFarChar(Prefix)),
   {7} DlgItem(DI_TEXT, cLeftSide, 7, cSizeX - cLeftSide * 2 - 4, -1, 0,
         PFarChar(MLibraryPath)),
-  {8} DlgItem(DI_EDIT, cLeftSide, 8, cSizeX - cLeftSide * 2, -1, DIF_EDITPATH,
+  {8} DlgItem(DI_EDIT, cLeftSide, 8, cSizeX - cLeftSide * 2, -1, 
+        {$IFDEF UNICODE}DIF_EDITPATH{$ELSE}0{$ENDIF},
         PFarChar(LibraryPath)),
   {9} DlgItem(DI_TEXT, cLeftSide - 1, cSizeY - 4, -1, 0, DIF_SEPARATOR, ''),
  {10} DlgItem(DI_BUTTON, 0, cSizeY - 3, 0, 0, DIF_CENTERGROUP,
