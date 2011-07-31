@@ -43,20 +43,24 @@ type
   public
     constructor Create;
     destructor Destroy; override;
-    function Execute: Integer;
+    function Execute: Integer; virtual;
     property Flags: Cardinal read FFlags write FFlags;
     property ItemsNumber: Integer read FItemsNumber;
   end;
 
   TSimpleFarDialog = class(TFarDialog)
   private
-    FItemsData: array of TFarString;
+    FItemsTextData: array of TFarString;
+    FItemsCheckData: array of Boolean;
     function SimpleDialogProc(Msg, Param1: Integer; Param2: LONG_PTR): LONG_PTR;
-    function GetItemData(Index: Integer): TFarString;
+    function GetItemTextData(Index: Integer): TFarString;
+    function GetItemCheckData(Index: Integer): Boolean;
   public
     constructor Create(AItems: array of TFarDialogItem;
       AX1, AY1, AX2, AY2: Integer; AHelpTopic: PFarChar);
-    property ItemData[Index: Integer]: TFarString read GetItemData;
+    destructor Destroy; override;
+    property ItemTextData[Index: Integer]: TFarString read GetItemTextData;
+    property ItemCheckData[Index: Integer]: Boolean read GetItemCheckData;
   end;
 
 function DlgItem(AItemType: Integer; X, Y, W, H: Integer; AFlags: DWORD;
@@ -67,6 +71,7 @@ implementation
 {
   AParam:
     дл€ DI_BUTTON - DefaultButton (0/1)
+    дл€ DI_CHECKBOX - отмечен или нет (1/0)
     дл€ флага DIF_HISTORY - Param.History
     д€€ флага DIF_MASKEDIT - Param.Mask
 }
@@ -101,11 +106,15 @@ begin
       Param.ListItems := nil
     else if ItemType = DI_BUTTON then
       DefaultButton := Integer(AParam)
-    else
-      if Flags and DIF_HISTORY <> 0 then
-        Param.History := AParam
-      else if Flags and DIF_MASKEDIT <> 0 then
+    else if ItemType = DI_FIXEDIT then
+    begin
+      if Flags and DIF_MASKEDIT <> 0 then
         Param.Mask := AParam;
+    end
+    else if ItemType = DI_CHECKBOX then
+      Param.Selected := Integer(AParam)
+    else if Flags and DIF_HISTORY <> 0 then
+      Param.History := AParam;
 {$IFDEF UNICODE}
     if DWORD(AData) < 2000 then
       PtrData := GetMsg(DWORD(AData))
@@ -179,7 +188,7 @@ begin
     Result := -1;
 {$ELSE}
   Result := FARAPI.DialogEx(FARAPI.ModuleNumber, FX1, FY1, FX2, FY2, FHelpTopic,
-    FItems, FItemsNumber, 0, Flags, FarDlgProc, Integer(Self))
+    FItems, FItemsNumber, 0, Flags, FarDlgProc, Integer(Self));
 {$ENDIF}
 end;
 
@@ -265,12 +274,25 @@ begin
   inherited Create;
   DlgProc := SimpleDialogProc;
   InitItems(AItems, AX1, AY1, AX2, AY2, AHelpTopic);
-  SetLength(FItemsData, ItemsNumber);
+  SetLength(FItemsTextData, ItemsNumber);
+  SetLength(FItemsCheckData, ItemsNumber);
 end;
 
-function TSimpleFarDialog.GetItemData(Index: Integer): TFarString;
+destructor TSimpleFarDialog.Destroy;
 begin
-  Result := FItemsData[Index];
+  SetLength(FItemsTextData, 0);
+  SetLength(FItemsCheckData, 0);
+  inherited;
+end;
+
+function TSimpleFarDialog.GetItemCheckData(Index: Integer): Boolean;
+begin
+  Result := FItemsCheckData[Index];
+end;
+
+function TSimpleFarDialog.GetItemTextData(Index: Integer): TFarString;
+begin
+  Result := FItemsTextData[Index];
 end;
 
 function TSimpleFarDialog.SimpleDialogProc(Msg, Param1: Integer;
@@ -304,9 +326,13 @@ begin
         GetMem(Item, l);
       end;
 {$ENDIF}
-      if (SendMsg(DM_GETDLGITEM, i, Item) <> 0) and
-          ((Item^.ItemType = DI_EDIT) or (Item^.ItemType = DI_FIXEDIT)) then
-        FItemsData[i] := GetText(i);
+      if (SendMsg(DM_GETDLGITEM, i, Item) <> 0) then
+      begin
+        if (Item^.ItemType = DI_EDIT) or (Item^.ItemType = DI_FIXEDIT) then
+          FItemsTextData[i] := GetText(i)
+        else if (Item^.ItemType = DI_CHECKBOX) or (Item^.ItemType = DI_RADIOBUTTON) then
+          FItemsCheckData[i] := GetChecked(i);
+      end;
     end;
   if l > 0 then
     FreeMem(Item);

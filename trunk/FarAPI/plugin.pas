@@ -1,7 +1,7 @@
 (*
    plugin.pas
 
-   Plugin API for FAR Manager 1.75 build 2626
+   Plugin API for FAR Manager 1.75 build 2634
 
    Copyright (c) 1996-2000 Eugene Roshal
    Copyright (c) 2000-2010 Far Group
@@ -435,7 +435,7 @@ type
 
       Data : record case Integer of
          0 : (Data : array [0..511] of Char);
-         1 : (Ptr : PFarDataPtr);
+         1 : (Ptr : TFarDataPtr);
       end;
    end;
 
@@ -1014,7 +1014,7 @@ const
    MCMD_GETSTATE        = 5;
 
 { FARMACROSTATE }
-const                            
+const
    MACROSTATE_NOMACRO          = 0;
    MACROSTATE_EXECUTING        = 1;
    MACROSTATE_EXECUTING_COMMON = 2;
@@ -2321,6 +2321,6 @@ begin
 end;
 
 initialization
-  FARMANAGERVERSION := MakeFarVersion (1,75,2626);
+  FARMANAGERVERSION := MakeFarVersion (1,75,2634);
 
 end.

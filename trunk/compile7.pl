@@ -5,13 +5,15 @@ use Win32API::Registry 0.21 qw(:ALL);
 use Cwd qw(fast_abs_path);
 use File::Path qw(make_path);
 
-my ($key, $type, $dcc, $root, $lib);
+my ($key, $type, $dcc, $root, $lib, $brc);
 (my $appname = fast_abs_path('.')) =~ s|^.*[\\/]||;
 
 # Расположение Delphi7
 RegOpenKeyEx(HKEY_LOCAL_MACHINE, 'Software\Borland\Delphi\7.0', 0, KEY_READ, $key);
 RegQueryValueEx($key, "App", [], $type, $dcc, []);
 $dcc =~ s/\\[^\\]+$/\\dcc32.exe/;
+$brc = $dcc;
+$brc =~ s/\\[^\\]+$/\\brc32.exe/;
 RegQueryValueEx($key, "RootDir", [], $type, $root, []);
 $root =~ s/\\$//;
 RegCloseKey($key);
@@ -23,6 +25,7 @@ RegCloseKey($key);
 
 $lib =~ s/\$\(DELPHI\)/$root/gi;
 $lib =~ s/\\$//;
+$lib = '';
 
 my $Unicode = 0 | ($#ARGV != -1);
 
@@ -41,6 +44,7 @@ close CFG;
 
 make_path "..\\Bin\\$UStr[$Unicode]\\$appname", "..\\Dcu\\$UStr[$Unicode]\\$appname";
 
+system "$brc -r $_" while(<*.rc>);
 #print "$dcc $appname.dpr -B -Q -I\"$lib;..\\Dcu\\$UStr[$Unicode]\\$appname\" -U\"$lib;..\\Dcu\\$UStr[$Unicode]\\$appname\" -LE\"$lib\" -R\"$lib\" -DRelease -D$UStr[$Unicode]\n";
 exit 1 if system "$dcc $appname.dpr -B -Q " .
   "-I\"$lib;..\\Dcu\\$UStr[$Unicode]\\$appname\" " .
