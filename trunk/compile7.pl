@@ -53,28 +53,43 @@ exit 1 if system "$dcc $appname.dpr -B -Q " .
   "-DRelease;NOT_USE_RICHEDIT;$UStr[$Unicode]$UStrAdd[$Unicode]";
 
 use Encode qw(encode decode);
+use File::Copy;
 
-while(glob('*.hlf *.lng')) {
-  my $file = "..\\Bin\\$UStr[$Unicode]\\$appname\\$_";
+my %subst = ( Version => '', FarVersion => '' );
+open(VERSION, '<', 'version.txt') and $subst{Version} = <VERSION>, close VERSION;
+$subst{FarVersion} = ('1.7x', '2')[$Unicode];
+
+while(glob('Doc\*.*')) {
+  my $file = $_;
+  $file =~ s/^Doc\\//i;
+  $file = "..\\Bin\\$UStr[$Unicode]\\$appname\\$file";
   if (!-f $file || (stat($_))[9] > (stat($file))[9]) {
-    my $content = '';
-    open my $fh, '<', $_;
-    {
-      local $/;
-      $content = <$fh>;
-    }
-    close $fh;
+    if ($file =~ m|^(.*)tpl\.([^/\\].+)$|i) {
+      $file = $1 . $2;
+      print "file: $file; _: $_\n";
+      my $content = '';
+      open my $fh, '<', $_;
+      {
+        local $/;
+        $content = <$fh>;
+      }
+      close $fh;
+      $content =~ s/\$\{$_\}/$subst{$_}/gei for (keys %subst);
 
-    open $fh, '>', $file;
-    if (!$Unicode && $content =~ s/^\xEF\xBB\xBF//) {
-      print $fh encode("cp866", decode("utf8", $content));
-    }
-    elsif ($Unicode && $content !~ m/^\xEF\xBB\xBF/) {
-      print $fh "\xEF\xBB\xBF", encode("utf8", decode("cp866", $content));
+      open $fh, '>', $file;
+      if (!$Unicode && $content =~ s/^\xEF\xBB\xBF//) {
+        print $fh encode("cp866", decode("utf8", $content));
+      }
+      elsif ($Unicode && $content !~ m/^\xEF\xBB\xBF/) {
+        print $fh "\xEF\xBB\xBF", encode("utf8", decode("cp866", $content));
+      }
+      else {
+        print $fh $content;
+      }
+      close $fh;
     }
     else {
-      print $fh $content;
+      copy($_, $file);
     }
-    close $fh;
   }
 }
