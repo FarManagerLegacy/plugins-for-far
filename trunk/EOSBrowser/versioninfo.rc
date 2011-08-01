@@ -1,0 +1,28 @@
+// LANGUAGE LANG_RUSSIAN, SUBLANG_DEFAULT
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,1
+ PRODUCTVERSION 1,0,0,0
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS 0x4L
+ FILETYPE 0x2L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "041904E3"
+        BEGIN
+            VALUE "FileDescription", "EOSBrowser Plugin Module"0x0L
+            VALUE "FileVersion", "1.0.0.1"0x0L
+            VALUE "InternalName", "EOSBrowser.dll"0x0L
+            VALUE "LegalCopyright", "© Andrew V. Andreenkov"0x0L
+            VALUE "OriginalFilename", "EOSBrowser.dll"0x0L
+            VALUE "ProductName", "EOSBrowser Plugin"0x0L
+            VALUE "ProductVersion", "1.0.0.0"0x0L
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x419, 1251
+    END
+END
