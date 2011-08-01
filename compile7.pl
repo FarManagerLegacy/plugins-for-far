@@ -31,7 +31,7 @@ my $Unicode = 0 | ($#ARGV != -1);
 
 my @UStr = ('ANSI', 'UNICODE');
 my @UStrAdd = ('', ';UNICODE_CTRLS');
-open CFG, "+<$appname.cfg";
+open CFG, '+<', "$appname.cfg";
 undef $/;
 my $cfg = <CFG>;
 $cfg =~ s/^(-D.*)UNICODE;?/$1/mi;
@@ -44,6 +44,25 @@ close CFG;
 
 make_path "..\\Bin\\$UStr[$Unicode]\\$appname", "..\\Dcu\\$UStr[$Unicode]\\$appname";
 
+my %subst = ( Version => '', FarVersion => '' );
+open(VERSION, '<', 'version.txt') and $subst{Version} = <VERSION>, close VERSION;
+$subst{FarVersion} = ('1.7x', '2')[$Unicode];
+
+if ($subst{Version} and open(VERSION, '+<', 'versioninfo.rc')) {
+  my @Version = split /\./, $subst{Version};
+  @Version = (@Version, (0) x (3 - $#Version));
+  undef $/;
+  my $data = <VERSION>;
+  my $ver = join ',', @Version;
+  $data =~ s/((?:FILEVERSION|PRODUCTVERSION)\s+)(?:\d+,\s*)+\d+/$1.$ver/eg;
+  $ver = join '.', @Version;
+  $data =~ s/("(?:FileVersion|ProductVersion)",\s+")(?:\d+\.)+\d+/$1.$ver/eg;
+  seek VERSION, 0, 0;
+  print VERSION $data;
+  truncate VERSION, tell(VERSION);
+  close VERSION;
+}
+
 system "$brc -r $_" while(<*.rc>);
 #print "$dcc $appname.dpr -B -Q -I\"$lib;..\\Dcu\\$UStr[$Unicode]\\$appname\" -U\"$lib;..\\Dcu\\$UStr[$Unicode]\\$appname\" -LE\"$lib\" -R\"$lib\" -DRelease -D$UStr[$Unicode]\n";
 exit 1 if system "$dcc $appname.dpr -B -Q " .
@@ -55,10 +74,6 @@ exit 1 if system "$dcc $appname.dpr -B -Q " .
 use Encode qw(encode decode);
 use File::Copy;
 
-my %subst = ( Version => '', FarVersion => '' );
-open(VERSION, '<', 'version.txt') and $subst{Version} = <VERSION>, close VERSION;
-$subst{FarVersion} = ('1.7x', '2')[$Unicode];
-
 while(glob('Doc\*.*')) {
   my $file = $_;
   $file =~ s/^Doc\\//i;
@@ -66,7 +81,6 @@ while(glob('Doc\*.*')) {
   if (!-f $file || (stat($_))[9] > (stat($file))[9]) {
     if ($file =~ m|^(.*)tpl\.([^/\\].+)$|i) {
       $file = $1 . $2;
-      print "file: $file; _: $_\n";
       my $content = '';
       open my $fh, '<', $_;
       {
@@ -93,3 +107,8 @@ while(glob('Doc\*.*')) {
     }
   }
 }
+
+my $ver = $subst{Version};
+$ver =~ s/\.//g;
+my @USuf = ('A', 'W');
+system "rar.exe u -as -mdg -m5 -r0 -ep1 -rr -s ..\\Bin\\$appname$USuf[$Unicode].v$ver.rar ..\\Bin\\$UStr[$Unicode]\\$appname\\*.* >nul";
