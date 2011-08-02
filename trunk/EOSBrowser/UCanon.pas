@@ -461,7 +461,6 @@ begin
             if UserData^.BaseRefType = brtDirItem then
             begin
 {$IFDEF USE_ESDK}
-              dirInfo.size := SizeOf(dirInfo);
               edserr := EdsGetDirectoryItemInfo(UserData^.BaseRef, dirInfo);
               if edserr = EDS_ERR_OK then
               begin
