@@ -4,7 +4,6 @@ unit UEDialogs;
 
 interface
 
-{$DEFINE USE_ESDK}
 {$DEFINE USE_DYNLOAD}
 
 uses
@@ -15,15 +14,13 @@ uses
 {$ELSE}
   plugin,
 {$ENDIF}
-{$IFDEF USE_ESDK}
-  {$IFDEF USE_DYNLOAD}
+{$IFDEF USE_DYNLOAD}
   UEdSdkApi,
-  {$ELSE}
+{$ELSE}
   EDSDKApi,
-  {$ENDIF}
+{$ENDIF}
   EDSDKError,
   EDSDKType,
-{$ENDIF}
   UTypes,
   UUtils,
   UDialogs,
@@ -72,9 +69,11 @@ constructor TOverDlg.Create(const FileName: TFarString;
     cFmt = '%d %.2d.%.2d.%.4d %.2d:%.2d:%.2d';
   var
     sysTime: TSystemTime;
+    localFileTime: TFileTime;
     i, l: Integer;
   begin
-    FileTimeToSystemTime(filetime, sysTime);
+    FileTimeToLocalFileTime(filetime, localFileTime);
+    FileTimeToSystemTime(localFileTime, sysTime);
     l := Length(GetMsgStr(MsgId) + Format(cFmt, [filesize,
       sysTime.wDay, sysTime.wMonth, sysTime.wYear,
       sysTime.wHour, sysTime.wMinute, sysTime.wSecond]));

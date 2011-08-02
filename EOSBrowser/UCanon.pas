@@ -4,7 +4,6 @@ unit UCanon;
 
 interface
 
-{$DEFINE USE_ESDK}
 {$DEFINE USE_DYNLOAD}
 
 uses
@@ -16,15 +15,13 @@ uses
 {$ELSE}
   plugin,
 {$ENDIF}
-{$IFDEF USE_ESDK}
-  {$IFDEF USE_DYNLOAD}
+{$IFDEF USE_DYNLOAD}
   UEdSdkApi,
-  {$ELSE}
+{$ELSE}
   EDSDKApi,
-  {$ENDIF}
+{$ENDIF}
   EDSDKError,
   EDSDKType,
-{$ENDIF}
   UTypes,
   UUtils,
   UProgressBar,
@@ -32,9 +29,6 @@ uses
   UEDialogs;
 
 type
-{$IFNDEF USE_ESDK}
-  EdsBaseRef = Pointer;
-{$ENDIF}
   TBaseRefType = (brtCamera, brtVolume, brtDirItem);
 
   PPanelUserData = ^TPanelUserData;
@@ -69,7 +63,6 @@ type
 
     procedure SetFindDataName(var FindData: TFarFindData; FileName: PChar);
 
-{$IFDEF USE_ESDK}
     function RecursiveDownload(dirItem: EdsDirectoryItemRef;
       const DestPath: TFarString; Move: Integer; Silent: Boolean;
       ProgressBar: TProgressBar; var overall, skipall: Boolean): EdsError;
@@ -80,7 +73,6 @@ type
     function DeleteDirItem(dirItem: EdsDirectoryItemRef;
       dirInfo: PEdsDirectoryItemInfo; OpMode: Integer;
       var skipall, delallfolder: Boolean): EdsError;
-{$ENDIF}
     function GetCameraInfo(var FindDataItem: TFindDataItem): Boolean;
     function GetVolumeInfo(aParentData: PPanelUserData;
       var FindDataItem: TFindDataItem): Boolean;
@@ -103,12 +95,10 @@ type
     property CurDirectory: TFarString read FCurDirectory;
   end;
 
-{$IFDEF USE_ESDK}
 function GetImageDate(stream: EdsStreamRef; dirItem: EdsDirectoryItemRef;
-  var FileFime: TFileTime): EdsError; overload;
+  var FileTime: TFileTime): EdsError; overload;
 function GetImageDate(dirItem: EdsDirectoryItemRef;
   var FileFime: TFileTime): EdsError; overload;
-{$ENDIF}
 
 implementation
 
@@ -116,14 +106,14 @@ uses UDialogs;
 
 { TCanon }
 
-{$IFDEF USE_ESDK}
 function GetImageDate(stream: EdsStreamRef;
-  dirItem: EdsDirectoryItemRef; var FileFime: TFileTime): EdsError;
+  dirItem: EdsDirectoryItemRef; var FileTime: TFileTime): EdsError;
 var
   image: EdsImageRef;
   P: Pointer;
   sysTime: TSystemTime;
   dateTime: EdsTime;
+  localFileTime: TFileTime;
 begin
   // Получение информации о дате/времени
   P := @dateTime;
@@ -146,7 +136,8 @@ begin
         sysTime.wSecond := dateTime.second;
         sysTime.wMilliseconds := dateTime.millseconds;
 
-        SystemTimeToFileTime(sysTime, FileFime);
+        SystemTimeToFileTime(sysTime, localFileTime);
+        LocalFileTimeToFileTime(localFileTime, FileTime);
       end;
       EdsRelease(image);
     end;
@@ -165,7 +156,6 @@ begin
     EdsRelease(stream);
   end;
 end;
-{$ENDIF}
 
 type
   TPluginPanelItemArray = array of TPluginPanelItem;
@@ -177,23 +167,19 @@ var
 constructor TCanon.Create(const FileName: TFarString);
 var
   i: Integer;
-{$IFDEF USE_ESDK}
   edserr: EdsError;
-{$ENDIF}
 begin
   inherited Create;
   if not IsConnect then
   begin
-{$IFDEF USE_ESDK}
-  {$IFDEF USE_DYNLOAD}
+{$IFDEF USE_DYNLOAD}
     if not InitEDSDK(PFarChar(FileName)) then
       raise Exception.Create(err.e_Abort, GetMsg(MLibNotFound));
-  {$ENDIF}
+{$ENDIF}
     edserr := EdsInitializeSDK;
     if edserr <> EDS_ERR_OK then
       raise Exception.Create(err.e_Abort, '')
     else
-{$ENDIF}
       IsConnect := True;
   end;
   _AddRef;
@@ -212,10 +198,8 @@ function TCanon.DeleteFiles(PanelItem: PPluginPanelItem; ItemsNumber,
 var
   text: TFarString;
   UserData: PPanelUserData;
-{$IFDEF USE_ESDK}
   edserr: EdsError;
   dirInfo: EdsDirectoryItemInfo;
-{$ENDIF}
   skipall, delallfolder: Boolean;
 begin
   Result := 0;
@@ -225,7 +209,6 @@ begin
     UserData := PPanelUserData(TPluginPanelItemArray(PanelItem)[0].UserData);
     if UserData^.BaseRefType = brtDirItem then
     begin
-{$IFDEF USE_ESDK}
       if ItemsNumber = 1 then
       begin
         if UserData^.BaseRefType = brtDirItem then
@@ -250,7 +233,6 @@ begin
           Exit;
       end
       else
-{$ENDIF}
         text := Format(GetMsg(MDeleteItems), [ItemsNumber,
           GetMsg(TLanguageID(Ord(MOneOk) + GetOk(ItemsNumber)))]);
       if (OpMode and OPM_SILENT <> 0) or
@@ -267,12 +249,10 @@ begin
           skipall := False;
           delallfolder := FARAPI.AdvControl(FARAPI.ModuleNumber,
             ACTL_GETCONFIRMATIONS, nil) and FCS_DELETENONEMPTYFOLDERS = 0;
-{$IFDEF USE_ESDK}
           edserr := DeleteDirItem(UserData^.BaseRef, nil, OpMode, skipall,
             delallfolder);
           if edserr = EDS_ERR_OK then
             Result := 1;
-{$ENDIF}
         end;
       end;
     end;
@@ -291,11 +271,9 @@ begin
   end;
   if (_Release = 0) and IsConnect then
   begin
-{$IFDEF USE_ESDK}
     EdsTerminateSDK;
-  {$IFDEF USE_DYNLOAD}
+{$IFDEF USE_DYNLOAD}
     FreeEDSDK;
-  {$ENDIF}
 {$ENDIF}
     IsConnect := False;
   end;
@@ -314,14 +292,12 @@ begin
       for i := 0 to ItemsNumber - 1 do
       begin
         BaseRef := PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData)^.BaseRef;
-{$IFDEF USE_ESDK}
         if BaseRef = FCurrentSession then
         begin
           EdsCloseSession(BaseRef);
           FCurrentSession := nil;
         end;
         EdsRelease(BaseRef);
-{$ENDIF}
 {$IFDEF UNICODE}
         if Assigned(TPluginPanelItemArray(PanelItem)[i].FindData.cFileName) then
           FreeMem(TPluginPanelItemArray(PanelItem)[i].FindData.cFileName);
@@ -388,11 +364,9 @@ var
   i: Integer;
   title: PFarChar;
   subtitle: TFarString;
-{$IFDEF USE_ESDK}
   dirInfo: EdsDirectoryItemInfo;
   edserr: EdsError;
   ProgressBar: TProgressBar;
-{$ENDIF}
   silent: Boolean;
   overall, skipall: Boolean;
   NewDestPath: array [0..MAX_PATH - 1] of TFarCHar;
@@ -435,13 +409,11 @@ begin
             {$IFDEF UNICODE}FIB_EDITPATH or{$ENDIF} FIB_BUTTONS) = 0 then
           Exit;
       end;
-{$IFDEF USE_ESDK}
       if not DirectoryExists(NewDestPath) and not ForceDirectories(NewDestPath) then
         edserr := EDS_ERR_DIR_NOT_FOUND
       else
         edserr := EDS_ERR_OK;
       if edserr = EDS_ERR_OK then
-{$ENDIF}
       begin
         if not silent then
           ProgressBar := TProgressBar.Create(title, 100, 4)
@@ -460,7 +432,6 @@ begin
             UserData := PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData);
             if UserData^.BaseRefType = brtDirItem then
             begin
-{$IFDEF USE_ESDK}
               edserr := EdsGetDirectoryItemInfo(UserData^.BaseRef, dirInfo);
               if edserr = EDS_ERR_OK then
               begin
@@ -468,25 +439,21 @@ begin
                   edserr := DownloadFile(UserData^.BaseRef, @dirInfo, NewDestPath,
                     Move, silent, ProgressBar, overall, skipall)
                 else
-  {$IFDEF UNICODE}
+{$IFDEF UNICODE}
                   edserr := RecursiveDownload(UserData^.BaseRef,
                     AddEndSlash(NewDestPath) + CharToWideChar(dirInfo.szFileName),
                     Move, silent, ProgressBar, overall, skipall);
-  {$ELSE}
+{$ELSE}
                   edserr := RecursiveDownload(UserData^.BaseRef,
                     AddEndSlash(NewDestPath) + dirInfo.szFileName,
                     Move, silent, ProgressBar, overall, skipall);
-  {$ENDIF}
+{$ENDIF}
 
 
               end;
               if edserr <> EDS_ERR_OK then
                 Break
               else
-{$ELSE}
-              if Assigned(ProgressBar) then
-                ProgressBar.UpdateProgress(50, False, Format(GetMsg(MCopying), ['','']));
-{$ENDIF}
                 TPluginPanelItemArray(PanelItem)[i].Flags :=
                   TPluginPanelItemArray(PanelItem)[i].Flags and not PPIF_SELECTED;
             end;
@@ -496,17 +463,14 @@ begin
             ProgressBar.Free;
         end;
       end;
-{$IFDEF USE_ESDK}
       if edserr = EDS_ERR_OK then
         Result := 1
       else if edserr = EDS_ERR_OPERATION_CANCELLED then
         Result := -1;
-{$ENDIF}
     end;
   end;
 end;
 
-{$IFDEF USE_ESDK}
 type
   PContextData = ^TContextData;
   TContextData = record
@@ -535,7 +499,7 @@ function TCanon.DownloadFile(dirItem: EdsDirectoryItemRef;
 var
   stream: EdsStreamRef;
   image: EdsImageRef;
-  filetime: TFileTime;
+  localFileTime, filetime: TFileTime;
   hFile: THandle;
   edserr: EdsError;
 
@@ -630,7 +594,8 @@ begin
                 sysTime.wSecond := dateTime.second;
                 sysTime.wMilliseconds := dateTime.millseconds;
 
-                SystemTimeToFileTime(sysTime, filetime);
+                SystemTimeToFileTime(sysTime, localFileTime);
+                LocalFileTimeToFileTime(localFileTime, FileTime);
               end;
               EdsRelease(image);
             end;
@@ -813,7 +778,6 @@ begin
     end;
   until not retry;
 end;
-{$ENDIF}
 
 function TCanon._AddRef: Integer;
 begin
@@ -830,22 +794,17 @@ end;
 
 function TCanon.GetCameraInfo(var FindDataItem: TFindDataItem): Boolean;
 var
-{$IFDEF USE_ESDK}
   cameraList: EdsCameraListRef;
   deviceInfo: EdsDeviceInfo;
   camera: EdsCameraRef;
   count: EdsUInt32;
   edserr: EdsError;
   i: Integer;
-{$ENDIF}
   PanelUserData: PPanelUserData;
 begin
-{$IFDEF USE_ESDK}
   Result := False;
-{$ENDIF}
   with FindDataItem do
   begin
-{$IFDEF USE_ESDK}
     cameraList := nil;
     count := 0;
 
@@ -887,29 +846,12 @@ begin
         else
           Result := True;
     end;
-{$ELSE}
-    ItemsNumber := 1;
-    GetMem(PanelItem, ItemsNumber * SizeOf(TPluginPanelItem));
-    ZeroMemory(PanelItem, ItemsNumber * SizeOf(TPluginPanelItem));
-    with TPluginPanelItemArray(PanelItem)[0] do
-    begin
-      SetFindDataName(FindData, 'Canon EOS 450D');
-      FindData.dwFileAttributes := FILE_ATTRIBUTE_DIRECTORY;
-
-      GetMem(PanelUserData, SizeOf(TPanelUserData));
-      PanelUserData^.BaseRefType := brtCamera;
-      PanelUserData^.BaseRef := Pointer(1000);
-      UserData := Cardinal(PanelUserData);
-    end;
-    Result := True;
-{$ENDIF}
   end;
 end;
 
 function TCanon.GetDirectoryInfo(aParentData: PPanelUserData;
   var FindDataItem: TFindDataItem; getDateTime: Boolean): Boolean;
 var
-{$IFDEF USE_ESDK}
   dirItem: EdsDirectoryItemRef;
   dirItem1: EdsDirectoryItemRef;
   dirItemInfo: EdsDirectoryItemInfo;
@@ -922,20 +864,14 @@ var
   stream: EdsStreamRef;
 
   ProgressBar: TProgressBar;
-{$ELSE}
-  FileName: String;
-{$ENDIF}
   i: Integer;
   PanelUserData: PPanelUserData;
 begin
-{$IFDEF USE_ESDK}
   Result := False;
   stream := nil;
-{$ENDIF}
   with FindDataItem do
   begin
     ParentData := aParentData;
-{$IFDEF USE_ESDK}
     edserr := EdsGetChildCount(ParentData^.BaseRef, count);
     if edserr = EDS_ERR_OK then
       if count > 0 then
@@ -1028,55 +964,23 @@ begin
       end
       else
         Result := True;
-{$ELSE}
-    ItemsNumber := 10;
-    GetMem(PanelItem, ItemsNumber * SizeOf(TPluginPanelItem));
-    ZeroMemory(PanelItem, ItemsNumber * SizeOf(TPluginPanelItem));
-    FileName := 'file0.jpg';
-    for i := 0 to ItemsNumber - 1 do
-      with TPluginPanelItemArray(PanelItem)[i] do
-      begin
-        FileName[5] := Chr(Ord('0') + i);
-        SetFindDataName(FindData, PChar(FileName));
-{$IFDEF UNICODE}
-        FindData.nFileSize := i * 1024;
-{$ELSE}
-        FindData.nFileSizeLow := i * 1024;
-{$ENDIF}
-        FindData.dwFileAttributes := FILE_ATTRIBUTE_NORMAL;
-        DateTime2FileTime(Now, FindData.ftCreationTime);
-        FindData.ftLastAccessTime := FindData.ftCreationTime;
-        FindData.ftLastWriteTime := FindData.ftCreationTime;
-
-        GetMem(PanelUserData, SizeOf(TPanelUserData));
-        PanelUserData^.BaseRefType := brtDirItem;
-        PanelUserData^.BaseRef := Pointer(i);
-        UserData := Cardinal(PanelUserData);
-      end;
-    Result := True;
-{$ENDIF}
   end;
 end;
 
 function TCanon.GetVolumeInfo(aParentData: PPanelUserData;
   var FindDataItem: TFindDataItem): Boolean;
 var
-{$IFDEF USE_ESDK}
   volume: EdsVolumeRef;
   volumeInfo: EdsVolumeInfo;
   count: EdsUInt32;
   edserr: EdsError;
   i: Integer;
-{$ENDIF}
   PanelUserData: PPanelUserData;
 begin
-{$IFDEF USE_ESDK}
   Result := False;
-{$ENDIF}
   with FindDataItem do
   begin
     ParentData := aParentData;
-{$IFDEF USE_ESDK}
     edserr := EdsGetChildCount(ParentData^.BaseRef, count);
     if edserr = EDS_ERR_OK  then
       if count > 0 then
@@ -1108,21 +1012,6 @@ begin
       end
       else
         Result := True;
-{$ELSE}
-    ItemsNumber := 1;
-    GetMem(PanelItem, ItemsNumber * SizeOf(TPluginPanelItem));
-    ZeroMemory(PanelItem, ItemsNumber * SizeOf(TPluginPanelItem));
-    with TPluginPanelItemArray(PanelItem)[0] do
-    begin
-      SetFindDataName(FindData, 'Volume');
-      FindData.dwFileAttributes := FILE_ATTRIBUTE_DIRECTORY;
-      GetMem(PanelUserData, SizeOf(TPanelUserData));
-      PanelUserData^.BaseRefType := brtVolume;
-      PanelUserData^.BaseRef := Pointer(1001);
-      UserData := Cardinal(PanelUserData);
-    end;
-    Result := True;
-{$ENDIF}
   end;
 end;
 
@@ -1174,9 +1063,7 @@ function TCanon.SetDirectory(Dir: PFarChar; OpMode: Integer): Integer;
   var
     i, CurFindDataItem: Integer;
     UserData: PPanelUserData;
-{$IFDEF USE_ESDK}
     edserr: EdsError;
-{$ENDIF}
   begin
     Result := False;
     UserData := nil;
@@ -1209,7 +1096,6 @@ function TCanon.SetDirectory(Dir: PFarChar; OpMode: Integer): Integer;
         case UserData^.BaseRefType of
           brtCamera:
           begin
-{$IFDEF USE_ESDK}
             if FCurrentSession <> UserData^.BaseRef then
             begin
               if Assigned(FCurrentSession) then
@@ -1221,7 +1107,6 @@ function TCanon.SetDirectory(Dir: PFarChar; OpMode: Integer): Integer;
             else
               edserr := EDS_ERR_OK;
             if edserr = EDS_ERR_OK then
-{$ENDIF}
               Result := GetVolumeInfo(UserData, FFindDataItem[CurFindDataItem]);
           end;
           brtVolume, brtDirItem:
