@@ -62,5 +62,6 @@
 "&Command line prefix:"
 "&Directory with to EDSDK.dll (without filename)"
 
-"EOS SDK initialization error"
+"EDSDK initialization error"
 "Library EDSDK.dll not found"
+"EDSDK error"

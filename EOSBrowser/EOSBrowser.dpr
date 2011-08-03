@@ -9,7 +9,8 @@ uses
   UCanon in 'UCanon.pas',
   UExport in 'UExport.pas',
   UEdSdkApi in 'UEdSdkApi.pas',
-  UEDialogs in 'UEDialogs.pas';
+  UEDialogs in 'UEDialogs.pas',
+  UEdSdkError in 'UEdSdkError.pas';
 
 {$R versioninfo.res}
 

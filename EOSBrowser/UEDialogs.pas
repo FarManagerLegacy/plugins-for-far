@@ -21,6 +21,7 @@ uses
 {$ENDIF}
   EDSDKError,
   EDSDKType,
+  UEDSDKError,
   UTypes,
   UUtils,
   UDialogs,
@@ -50,6 +51,7 @@ type
 
 procedure LoadConfig;
 procedure SaveConfig;
+procedure ShowEdSdkError(ErrorCode: EdsError);
 
 var
   ConfigData: TConfigData;
@@ -58,6 +60,12 @@ implementation
 
 uses
   UCanon;
+
+procedure ShowEdSdkError(ErrorCode: EdsError);
+begin
+  ShowMessage(GetMsg(MEdSdkError), GetEdSdkError(ErrorCode),
+    [GetMsg(MBtnOk)], FMSG_WARNING);
+end;
 
 { TOverDlg }
 
