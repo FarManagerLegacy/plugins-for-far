@@ -408,6 +408,10 @@ begin
             MAX_PATH, nil,
             {$IFDEF UNICODE}FIB_EDITPATH or{$ENDIF} FIB_BUTTONS) = 0 then
           Exit;
+      end
+      else
+      begin
+        StrLCopy(NewDestPath, DestPath, MAX_PATH);
       end;
       if not DirectoryExists(NewDestPath) and not ForceDirectories(NewDestPath) then
         edserr := EDS_ERR_DIR_NOT_FOUND
@@ -466,7 +470,9 @@ begin
       if edserr = EDS_ERR_OK then
         Result := 1
       else if edserr = EDS_ERR_OPERATION_CANCELLED then
-        Result := -1;
+        Result := -1
+      else
+        ShowEdSdkError(edserr);
     end;
   end;
 end;

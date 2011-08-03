@@ -77,7 +77,8 @@ type
     MLibraryPath,
 
     MInitError,
-    MLibNotFound
+    MLibNotFound,
+    MEdSdkError
   );
 
 function GetMsg(MsgId: TLanguageID): PFarChar;
