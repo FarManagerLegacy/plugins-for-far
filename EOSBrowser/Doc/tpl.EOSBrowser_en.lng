@@ -70,14 +70,15 @@
 
 "Volume Info"
 "Storage type"
-"No card"
-"CF"
-"SD"
+"No memory card inserted"
+"Compact flash"
+"SD card"
 
 "Access"
-"Read only"
-"Write only"
-"Read/write"
+"Read Only"
+"Write Only"
+"Read and Write"
+"Access error"
 
 "MaxCapacity"
 "FreeSpace"

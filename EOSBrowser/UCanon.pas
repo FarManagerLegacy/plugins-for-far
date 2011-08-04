@@ -330,6 +330,20 @@ begin
 end;
 
 procedure TCanon.GetOpenPluginInfo(var Info: TOpenPluginInfo);
+  procedure SetInfoLine(Index: Integer; Text: PFarChar; SetText: Boolean);
+  begin
+{$IFDEF UNICODE}
+    if SetText then
+      FInfoLines^[Index].Text := Text
+    else
+      FInfoLines^[Index].Data := Text;
+{$ELSE}
+    if SetText then
+      StrLCopy(FInfoLines^[Index].Text, Text, 79)
+    else
+      StrLCopy(FInfoLines^[Index].Data, Text, 79);
+{$ENDIF}
+  end;
 var
   i: Integer;
   SetTitles: Boolean;
@@ -379,26 +393,26 @@ begin
             Info.InfoLinesNumber := 2;
             SetInfoLinesCount(Info.InfoLinesNumber);
             FInfoLines^[0].Separator := 1;
-            FInfoLines^[0].Text := GetMsg(MCameraInfo);
-            FInfoLines^[1].Text := GetMsg(MCameraName);
-            FInfoLines^[1].Data := 'Canon EOS 450D';
+            SetInfoLine(0, GetMsg(MCameraInfo), True);
+            SetInfoLine(1, GetMsg(MCameraName), True);
+            SetInfoLine(1, 'Canon EOS 450D', False);
           end;
           brtVolume:
           begin
             Info.InfoLinesNumber := 6;
             SetInfoLinesCount(Info.InfoLinesNumber);
             FInfoLines^[0].Separator := 1;
-            FInfoLines^[0].Text := GetMsg(MVolumeInfo);
-            FInfoLines^[1].Text := GetMsg(MVolumeName);
-            FInfoLines^[1].Data := PFarChar(FVolumeInfo.VolumeName);
-            FInfoLines^[2].Text := GetMsg(MStorageType);
-            FInfoLines^[2].Data := PFarChar(FVolumeInfo.StorageType);
-            FInfoLines^[3].Text := GetMsg(MAccess);
-            FInfoLines^[3].Data := PFarChar(FVolumeInfo.Access);
-            FInfoLines^[4].Text := GetMsg(MMaxCapacity);
-            FInfoLines^[4].Data := PFarChar(FVolumeInfo.MaxCapacity);
-            FInfoLines^[5].Text := GetMsg(MFreeSpace);
-            FInfoLines^[5].Data := PFarChar(FVolumeInfo.FreeSpace);
+            SetInfoLine(0, GetMsg(MVolumeInfo), True);
+            SetInfoLine(1, GetMsg(MVolumeName), True);
+            SetInfoLine(1, PFarChar(FVolumeInfo.VolumeName), False);
+            SetInfoLine(2, GetMsg(MStorageType), True);
+            SetInfoLine(2, PFarChar(FVolumeInfo.StorageType), False);
+            SetInfoLine(3, GetMsg(MAccess), True);
+            SetInfoLine(3, PFarChar(FVolumeInfo.Access), False);
+            SetInfoLine(4, GetMsg(MMaxCapacity), True);
+            SetInfoLine(4, PFarChar(FVolumeInfo.MaxCapacity), False);
+            SetInfoLine(5, GetMsg(MFreeSpace), True);
+            SetInfoLine(5, PFarChar(FVolumeInfo.FreeSpace), False);
           end
           else
             Info.InfoLinesNumber := 0;
@@ -1079,8 +1093,9 @@ begin
                 end;
                 case volumeInfo.access of
                   0: Access := GetMsgStr(MReadOnly);
-                  2: Access := GetMsgStr(MWriteOnly);
-                  3: Access := GetMsgStr(MReadWrite);
+                  1: Access := GetMsgStr(MWriteOnly);
+                  2: Access := GetMsgStr(MReadWrite);
+                  $FFFFFFFF: Access := GetMsgStr(MAccessError);
                   else Access := '';
                 end;
                 MaxCapacity := FormatFileSize(volumeInfo.maxCapacity);
@@ -1317,9 +1332,15 @@ begin
   end;
   if Result <> 0 then
   begin
+{$IFDEF UNICODE}
     FARAPI.Control(PANEL_PASSIVE, FCTL_GETPANELINFO, 0, @PanelInfo);
     if PanelInfo.PanelType = PTYPE_INFOPANEL then
       FARAPI.Control(PANEL_PASSIVE, FCTL_UPDATEPANEL, 0, nil);
+{$ELSE}
+    FARAPI.Control(INVALID_HANDLE_VALUE, FCTL_GETANOTHERPANELINFO, @PanelInfo);
+    if PanelInfo.PanelType = PTYPE_INFOPANEL then
+      FARAPI.Control(INVALID_HANDLE_VALUE, FCTL_UPDATEANOTHERPANEL, nil);
+{$ENDIF}    
   end
   else if OpMode and (OPM_FIND or OPM_SILENT) = 0 then
     ShowMessage(GetMsg(MError), GetMsg(MPathNotFound), FMSG_WARNING + FMSG_MB_OK);

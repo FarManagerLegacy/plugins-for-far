@@ -103,8 +103,6 @@ function PosEx(const SubStr, S: TFarString; Offset: Cardinal = 1): Integer;
 
 implementation
 
-uses SysUtils;
-
 {$IFDEF UNICODE}
 function CharToWideChar(const str: PChar; CodePage: UINT): WideString;
 var
@@ -683,11 +681,11 @@ function FormatFileSize(Value: Int64): TFarString;
 var
   Suffix: TFarString;
 begin
-  if Value < 1024 * 1024 then
-    Suffix := ''
+  {if Value < 1024 * 1024 then
+    Suffix := 'B'
   else
   begin
-    Value := Value div 1024;
+    Value := Value div 1024;}
     if Value < 1024 * 1024 then
       Suffix := 'KB'
     else
@@ -701,7 +699,7 @@ begin
         Suffix := 'GB';
       end;
     end;
-  end;
+  {end;}
   Result := Format('%u %s', [Cardinal(Value), Suffix]);
 end;
 
