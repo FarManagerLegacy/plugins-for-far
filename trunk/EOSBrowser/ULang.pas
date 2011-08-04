@@ -93,6 +93,7 @@ type
     MReadOnly,
     MWriteOnly,
     MReadWrite,
+    MAccessError,
 
     MMaxCapacity,
     MFreeSpace
