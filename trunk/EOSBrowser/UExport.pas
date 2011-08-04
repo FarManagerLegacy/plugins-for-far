@@ -98,6 +98,8 @@ begin
     pi.DiskMenuStringsNumber := 0;
 
   pi.CommandPrefix := PFarChar(ConfigData.Prefix); //PChar(prefix);
+
+  pi.Flags := PF_FULLCMDLINE;
 end;
 
 (*

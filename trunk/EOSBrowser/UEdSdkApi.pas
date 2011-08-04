@@ -68,7 +68,7 @@ type
                           var outFileAttribute : EdsFileAttributes ) : EdsError ; stdcall ; 
   TEdsSetAttribute = function ( inDirItemRef : EdsDirectoryItemRef;
                           inFileAttribute : EdsFileAttributes ) : EdsError ; stdcall ; 
-  TEdsCreateFileStream = function ( inFileName : PChar ;
+  TEdsCreateFileStream = function ( inFileName : PAnsiChar ;
                               inCreateDisposition : EdsFileCreateDisposition;
                               inDesiredAccess : EdsAccess ;
                               var outStream : EdsStreamRef ) : EdsError ; stdcall ; 

@@ -65,3 +65,19 @@
 "EDSDK initialization error"
 "Library EDSDK.dll not found"
 "EDSDK error"
+
+"Camera Info"
+
+"Volume Info"
+"Storage type"
+"No card"
+"CF"
+"SD"
+
+"Access"
+"Read only"
+"Write only"
+"Read/write"
+
+"MaxCapacity"
+"FreeSpace"

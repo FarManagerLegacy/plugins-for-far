@@ -43,11 +43,20 @@ type
     ItemsNumber: Integer;
   end;
 
+  TVolumeInfo = record
+    VolumeName: TFarString;
+    StorageType: TFarString; // 0 = no card,    1 = CD,    2 = SD
+    Access: TFarString; // 0 = Read only   2 = Write only   3 Read/Write
+    MaxCapacity: TFarString;
+    FreeSpace: TFarString;
+  end;
+
   TCanon = class
   private
     FCurDirectory: TFarString;
     FPanelTitle: TFarString;
-    // FPanelInfo: TPanelInfo;
+    FInfoLines: PInfoPanelLineArray;
+    FInfoLineCount: Integer;
 
     FPanelModesArray: array[0..9] of TPanelMode;
     FColumnTitles: array[0..0] of PFarChar;
@@ -57,11 +66,13 @@ type
 
     FCurrentSession: EdsBaseRef;
 
+    FVolumeInfo: TVolumeInfo;
+
   private
     function _AddRef: Integer;
     function _Release: Integer;
 
-    procedure SetFindDataName(var FindData: TFarFindData; FileName: PChar);
+    procedure SetFindDataName(var FindData: TFarFindData; FileName: PAnsiChar);
 
     function RecursiveDownload(dirItem: EdsDirectoryItemRef;
       const DestPath: TFarString; Move: Integer; Silent: Boolean;
@@ -79,6 +90,7 @@ type
     function GetDirectoryInfo(aParentData: PPanelUserData;
       var FindDataItem: TFindDataItem; getDateTime: Boolean): Boolean;
     procedure FreeFindDataItem(FindDataItem: TFindDataItem);
+    procedure SetInfoLinesCount(Value: Integer);
   public
     constructor Create(const FileName: TFarString);
     destructor Destroy; override;
@@ -190,6 +202,8 @@ begin
     ColumnWidths := '0';
   end;
   FCurrentSession := nil;
+  FInfoLines := nil;
+  FInfoLineCount := 0;
   // FARAPI.Control(INVALID_HANDLE_VALUE, FCTL_GETPANELSHORTINFO, @FPanelInfo);
 end;
 
@@ -263,6 +277,11 @@ destructor TCanon.Destroy;
 var
   i: Integer;
 begin
+  if FInfoLineCount > 0 then
+  begin
+    FreeMem(FInfoLines);
+    FInfoLineCount := 0;
+  end;
   if Length(FFindDataItem) > 0 then
   begin
     for i := Length(FFindDataItem) - 1 to 0 do
@@ -318,7 +337,7 @@ begin
   with Info do
   begin
     StructSize := SizeOf(Info);
-    //Format := 'EOS';
+    Format := PFarChar(ConfigData.Prefix);
     Flags := OPIF_ADDDOTS;
     CurDir := PFarChar(CurDirectory);
 
@@ -353,6 +372,38 @@ begin
       end
       else
         Flags := Flags + OPIF_USEFILTER + OPIF_USESORTGROUPS + OPIF_USEHIGHLIGHTING;
+      if FCurFindDataItem > 0 then
+        case FFindDataItem[FCurFindDataItem].ParentData^.BaseRefType of
+          brtCamera:
+          begin
+            Info.InfoLinesNumber := 2;
+            SetInfoLinesCount(Info.InfoLinesNumber);
+            FInfoLines^[0].Separator := 1;
+            FInfoLines^[0].Text := GetMsg(MCameraInfo);
+            FInfoLines^[1].Text := GetMsg(MCameraName);
+            FInfoLines^[1].Data := 'Canon EOS 450D';
+          end;
+          brtVolume:
+          begin
+            Info.InfoLinesNumber := 6;
+            SetInfoLinesCount(Info.InfoLinesNumber);
+            FInfoLines^[0].Separator := 1;
+            FInfoLines^[0].Text := GetMsg(MVolumeInfo);
+            FInfoLines^[1].Text := GetMsg(MVolumeName);
+            FInfoLines^[1].Data := PFarChar(FVolumeInfo.VolumeName);
+            FInfoLines^[2].Text := GetMsg(MStorageType);
+            FInfoLines^[2].Data := PFarChar(FVolumeInfo.StorageType);
+            FInfoLines^[3].Text := GetMsg(MAccess);
+            FInfoLines^[3].Data := PFarChar(FVolumeInfo.Access);
+            FInfoLines^[4].Text := GetMsg(MMaxCapacity);
+            FInfoLines^[4].Data := PFarChar(FVolumeInfo.MaxCapacity);
+            FInfoLines^[5].Text := GetMsg(MFreeSpace);
+            FInfoLines^[5].Data := PFarChar(FVolumeInfo.FreeSpace);
+          end
+          else
+            Info.InfoLinesNumber := 0;
+        end;
+      InfoLines := FInfoLines;
     end;
   end;
 end;
@@ -410,9 +461,11 @@ begin
           Exit;
       end
       else
-      begin
+{$IFDEF UNICODE}
+        WStrLCopy(NewDestPath, DestPath, MAX_PATH);
+{$ELSE}
         StrLCopy(NewDestPath, DestPath, MAX_PATH);
-      end;
+{$ENDIF}
       if not DirectoryExists(NewDestPath) and not ForceDirectories(NewDestPath) then
         edserr := EDS_ERR_DIR_NOT_FOUND
       else
@@ -1002,6 +1055,7 @@ begin
           begin
             edserr := EdsGetVolumeInfo(volume, volumeInfo);
             if edserr = EDS_ERR_OK then
+            begin
               with TPluginPanelItemArray(PanelItem)[i] do
               begin
                 //Flags := PPIF_USERDATA;
@@ -1012,7 +1066,27 @@ begin
                 PanelUserData^.BaseRefType := brtVolume;
                 UserData := Cardinal(PanelUserData);
                 Result := True;
+
               end;
+              with FVolumeInfo do
+              begin
+                VolumeName := TPluginPanelItemArray(PanelItem)[i].FindData.cFileName;
+                case volumeInfo.storageType of
+                  0: StorageType := GetMsgStr(MNoCard);
+                  1: StorageType := GetMsgStr(M_CF);
+                  2: StorageType := GetMsgStr(M_SD);
+                  else StorageType := '';
+                end;
+                case volumeInfo.access of
+                  0: Access := GetMsgStr(MReadOnly);
+                  2: Access := GetMsgStr(MWriteOnly);
+                  3: Access := GetMsgStr(MReadWrite);
+                  else Access := '';
+                end;
+                MaxCapacity := FormatFileSize(volumeInfo.maxCapacity);
+                FreeSpace := FormatFileSize(volumeInfo.freeSpaceInBytes);
+              end;
+            end;
           end;
         end;
       end
@@ -1021,7 +1095,7 @@ begin
   end;
 end;
 
-procedure TCanon.SetFindDataName(var FindData: TFarFindData; FileName: PChar);
+procedure TCanon.SetFindDataName(var FindData: TFarFindData; FileName: PAnsiChar);
 {$IFDEF UNICODE}
 var
   bufsize: Integer;
@@ -1172,6 +1246,7 @@ var
   NewDirectory, CurDir: TFarString;
   err_ok: Boolean;
   CurFindDataItem: Integer;
+  PanelInfo: TPanelInfo;
 begin
   Result := 0;
   if Dir = cDelim then
@@ -1240,11 +1315,26 @@ begin
       end;
     end;
   end;
-  if (Result = 0) and (OpMode and (OPM_FIND or OPM_SILENT) = 0) then
+  if Result <> 0 then
   begin
-    ShowMessage(GetMsg(MError), GetMsg(MPathNotFound),
-      FMSG_WARNING + FMSG_MB_OK);
+    FARAPI.Control(PANEL_PASSIVE, FCTL_GETPANELINFO, 0, @PanelInfo);
+    if PanelInfo.PanelType = PTYPE_INFOPANEL then
+      FARAPI.Control(PANEL_PASSIVE, FCTL_UPDATEPANEL, 0, nil);
+  end
+  else if OpMode and (OPM_FIND or OPM_SILENT) = 0 then
+    ShowMessage(GetMsg(MError), GetMsg(MPathNotFound), FMSG_WARNING + FMSG_MB_OK);
+end;
+
+procedure TCanon.SetInfoLinesCount(Value: Integer);
+begin
+  if Value > FInfoLineCount then
+  begin
+    if FInfoLineCount > 0 then
+      FreeMem(FInfoLines);
+    GetMem(FInfoLines, Value * SizeOf(TInfoPanelLine));
   end;
+  ZeroMemory(FInfoLines, Value * SizeOf(TInfoPanelLine));
+  FInfoLineCount := Value;
 end;
 
 initialization
