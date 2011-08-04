@@ -88,6 +88,8 @@ function ShowMessage(const title, text: PFarChar; buttons: array of PFarChar;
 function NewID: String;
 
 function Format(const fmt: TFarString; params: array of const): TFarString;
+function itoa64(Value: Int64): TFarString;
+function FormatFileSize(Value: Int64): TFarString;
 
 function AddEndSlash(const path: TFarString): TFarString;
 
@@ -100,6 +102,8 @@ function RegEnumValueW(hKey: HKEY; dwIndex: DWORD; lpValueName: PWideChar;
 function PosEx(const SubStr, S: TFarString; Offset: Cardinal = 1): Integer;
 
 implementation
+
+uses SysUtils;
 
 {$IFDEF UNICODE}
 function CharToWideChar(const str: PChar; CodePage: UINT): WideString;
@@ -665,6 +669,40 @@ begin
   Result := Buffer;
   if ElsArray <> nil then
     FreeMem(ElsArray);
+end;
+
+function itoa64(Value: Int64): TFarString;
+var
+  buf: array[0..63] of TFarChar;
+begin
+  FSF.itoa64(Value, buf, 10);
+  Result := buf;
+end;
+
+function FormatFileSize(Value: Int64): TFarString;
+var
+  Suffix: TFarString;
+begin
+  if Value < 1024 * 1024 then
+    Suffix := ''
+  else
+  begin
+    Value := Value div 1024;
+    if Value < 1024 * 1024 then
+      Suffix := 'KB'
+    else
+    begin
+      Value := Value div 1024;
+      if Value < 1024 * 1024 then
+        Suffix := 'MB'
+      else
+      begin
+        Value := Value div 1024;
+        Suffix := 'GB';
+      end;
+    end;
+  end;
+  Result := Format('%u %s', [Cardinal(Value), Suffix]);
 end;
 
 function AddEndSlash(const path: TFarString): TFarString;

@@ -78,7 +78,24 @@ type
 
     MInitError,
     MLibNotFound,
-    MEdSdkError
+    MEdSdkError,
+
+    MCameraInfo,
+
+    MVolumeInfo,
+
+    MStorageType,
+    MNoCard,
+    M_CF,
+    M_SD,
+
+    MAccess,
+    MReadOnly,
+    MWriteOnly,
+    MReadWrite,
+
+    MMaxCapacity,
+    MFreeSpace
   );
 
 function GetMsg(MsgId: TLanguageID): PFarChar;

@@ -64,7 +64,7 @@ uses
 procedure ShowEdSdkError(ErrorCode: EdsError);
 begin
   ShowMessage(GetMsg(MEdSdkError), GetEdSdkError(ErrorCode),
-    [GetMsg(MBtnOk)], FMSG_WARNING);
+    FMSG_WARNING + FMSG_MB_OK);
 end;
 
 { TOverDlg }
