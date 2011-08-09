@@ -43,10 +43,15 @@ type
     ItemsNumber: Integer;
   end;
 
+  TCameraInfo = record
+    CameraName: TFarString;
+    BodyID: TFarString;
+  end;
+
   TVolumeInfo = record
     VolumeName: TFarString;
     StorageType: TFarString; // 0 = no card,    1 = CD,    2 = SD
-    Access: TFarString; // 0 = Read only   2 = Write only   3 Read/Write
+    Access: TFarString; // 0 = Read only   1 = Write only   2 Read/Write
     MaxCapacity: TFarString;
     FreeSpace: TFarString;
   end;
@@ -66,6 +71,7 @@ type
 
     FCurrentSession: EdsBaseRef;
 
+    FCameraInfo: TCameraInfo;
     FVolumeInfo: TVolumeInfo;
 
   private
@@ -122,19 +128,19 @@ function GetImageDate(stream: EdsStreamRef;
   dirItem: EdsDirectoryItemRef; var FileTime: TFileTime): EdsError;
 var
   image: EdsImageRef;
-  P: Pointer;
   sysTime: TSystemTime;
   dateTime: EdsTime;
   localFileTime: TFileTime;
+  P: Pointer;
 begin
   // Получение информации о дате/времени
-  P := @dateTime;
   Result := EdsDownloadThumbnail(dirItem, stream);
   if Result = EDS_ERR_OK then
   begin
     Result := EdsCreateImageRef(stream, image);
     if Result = EDS_ERR_OK then
     begin
+      P := @dateTime;
       Result := EdsGetPropertyData(image,
         kEdsPropID_DateTime, 0, SizeOf(EdsTime),
         Pointer(P^));
@@ -395,7 +401,7 @@ begin
             FInfoLines^[0].Separator := 1;
             SetInfoLine(0, GetMsg(MCameraInfo), True);
             SetInfoLine(1, GetMsg(MCameraName), True);
-            SetInfoLine(1, 'Canon EOS 450D', False);
+            SetInfoLine(1, PFarChar(FCameraInfo.CameraName), False);
           end;
           brtVolume:
           begin
@@ -902,6 +908,7 @@ begin
             begin
               edserr := EdsGetDeviceInfo(camera, deviceInfo);
               if edserr = EDS_ERR_OK then
+              begin
                 with TPluginPanelItemArray(PanelItem)[i] do
                 begin
                   //Flags := PPIF_USERDATA;
@@ -913,6 +920,7 @@ begin
                   UserData := Cardinal(PanelUserData);
                   Result := True;
                 end;
+              end;
             end;
           end;
         end
@@ -1159,6 +1167,43 @@ function TCanon.SetDirectory(Dir: PFarChar; OpMode: Integer): Integer;
     i, CurFindDataItem: Integer;
     UserData: PPanelUserData;
     edserr: EdsError;
+  function GetProperty(camera: EdsCameraRef; PropertyId: EdsPropertyID): TFarString;
+  var
+    str: array[0..63] of EdsChar;
+    data: EdsUInt32;
+    datetime: EdsTime;
+    p: Pointer;
+    datatype, size: EdsUInt32;
+  begin
+    Result := '';
+    if (EdsGetPropertySize(camera, PropertyId, 0, datatype, size) = EDS_ERR_OK) then
+    begin
+      if EdsEnumDataType(datatype) = kEdsDataType_String then
+      begin
+        p := @str;
+        if EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)) = EDS_ERR_OK then
+          Result := str;
+      end
+      else if EdsEnumDataType(datatype) = kEdsDataType_Time then
+      begin
+        P := @datetime;
+        if EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)) = EDS_ERR_OK then
+          Result := Format('%02d.%02d.%04d %02d:%02d:%02d', [
+            datetime.year,
+            datetime.month,
+            datetime.day,
+            datetime.hour,
+            datetime.minute,
+            datetime.second]);
+      end
+      else if EdsEnumDataType(datatype) in [kEdsDataType_UInt32, kEdsDataType_Int32] then
+      begin
+        p := @data;
+        if EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)) = EDS_ERR_OK then
+          Result := Format('%d', [data]);
+      end;
+    end;
+  end;
   begin
     Result := False;
     UserData := nil;
@@ -1197,7 +1242,19 @@ function TCanon.SetDirectory(Dir: PFarChar; OpMode: Integer): Integer;
                 EdsCloseSession(FCurrentSession);
               edserr := EdsOpenSession(UserData^.BaseRef);
               if edserr = EDS_ERR_OK then
+              begin
                 FCurrentSession := UserData^.BaseRef;
+                with FCameraInfo do
+                begin
+                  CameraName := NewDir;
+                  GetProperty(UserData^.BaseRef, kEdsPropID_ProductName);
+                  GetProperty(UserData^.BaseRef, kEdsPropID_BodyIdEx);
+                  GetProperty(UserData^.BaseRef, kEdsPropID_DateTime);
+                  GetProperty(UserData^.BaseRef, kEdsPropID_FirmwareVersion);
+                  GetProperty(UserData^.BaseRef, kEdsPropID_BatteryLevel);
+                  GetProperty(UserData^.BaseRef, kEdsPropID_BatteryQuality);
+                end;
+              end;
             end
             else
               edserr := EDS_ERR_OK;

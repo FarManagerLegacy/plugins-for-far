@@ -138,6 +138,9 @@ type
 	kEdsPropID_CurrentFolder        = $0000000d;
 	kEdsPropID_MyMenu		        = $0000000e;
 
+        kEdsPropID_BodyIDEx         = $00000015;     { Product serial number }
+
+
     kEdsPropID_UserWhiteBalanceData = $00000201;
     kEdsPropID_UserToneCurveData    = $00000202;
     kEdsPropID_UserPictureStyleData = $00000203;
