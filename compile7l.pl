@@ -1,30 +1,20 @@
 #!perl -w
 
 use strict;
-use Win32API::Registry 0.21 qw(:ALL);
 use Cwd qw(fast_abs_path);
 use File::Path qw(make_path);
 
-my ($key, $type, $dcc, $root, $lib, $brc);
+my ($dcc, $root, $lib, $brc);
 (my $appname = fast_abs_path('.')) =~ s|^.*[\\/]||;
 
 # Расположение Delphi7
-RegOpenKeyEx(HKEY_LOCAL_MACHINE, 'Software\Borland\Delphi\7.0', 0, KEY_READ, $key);
-RegQueryValueEx($key, "App", [], $type, $dcc, []);
-$dcc =~ s/\\[^\\]+$/\\dcc32.exe/;
-$brc = $dcc;
-$brc =~ s/\\[^\\]+$/\\brc32.exe/;
-RegQueryValueEx($key, "RootDir", [], $type, $root, []);
-$root =~ s/\\$//;
-RegCloseKey($key);
+$0 = $^X unless ($^X =~ m%(^|[/\\])perl(\.exe)?$%i);
+$root = $0;
+$root =~ s/\\[^\\]+$/\\NoBackup\\Delphi7/;
+$dcc = "$root\\dcc32.exe";
+$brc = "$root\\brc32.exe";
 
 # Библиотеки Delphi7
-RegOpenKeyEx(HKEY_CURRENT_USER, 'Software\Borland\Delphi\7.0\Library', 0, KEY_READ, $key);
-RegQueryValueEx($key, "Search Path", [], $type, $lib, []);
-RegCloseKey($key);
-
-$lib =~ s/\$\(DELPHI\)/$root/gi;
-$lib =~ s/\\$//;
 $lib = '';
 
 my $Unicode = 0 | ($#ARGV != -1);
@@ -73,7 +63,7 @@ system "$brc -r $_" while(<*.rc>);
 #DCC
 exit 1 if system "$dcc $appname.dpr -B -Q " .
   "-I\"$lib;..\\Dcu\\$UStr[$Unicode]\\$appname\" " .
-  "-U\"$root\\AddLib\\SysDcu7;$lib;..\\Dcu\\$UStr[$Unicode]\\$appname\" " .
+  "-U\"$root\\SysDcu7;$lib;..\\Dcu\\$UStr[$Unicode]\\$appname\" " .
   "-LE\"$lib\" -R\"$lib\" " .
   "-DRelease;NOT_USE_RICHEDIT;$UStr[$Unicode]$UStrAdd[$Unicode]";
 
