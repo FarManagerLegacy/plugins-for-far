@@ -1354,6 +1354,7 @@ const
   ACTL_GETFARRECT           = 32;
   ACTL_GETCURSORPOS         = 33;
   ACTL_SETCURSORPOS         = 34;
+  ACTL_PROGRESSNOTIFY       = 35;
 
   
 { FarSystemSettings }

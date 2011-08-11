@@ -12,6 +12,7 @@
 "Volume Name"
 
 "Path not found"
+"Reading"
 
 "Copy"
 "Copy \"%s\" to:"
@@ -40,6 +41,7 @@
 "Do you really want to cancel it?"
 
 "File already exists"
+"The file is read only"
 "New"
 "Existing"
 "&Remember choice"
