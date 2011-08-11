@@ -26,6 +26,7 @@ type
     MVolumeName,
 
     MPathNotFound,
+    MReading,
     
     MCopy,
     MCopyTo,
@@ -54,6 +55,7 @@ type
     MInterruptedText,
 
     MFileAlreadyExists,
+    MFileReadOnly,
     MNew,
     MExisting,
     MRememberChoice,

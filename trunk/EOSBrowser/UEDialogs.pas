@@ -30,7 +30,7 @@ uses
 type
   TOverDlg = class(TSimpleFarDialog)
   public
-    constructor Create(const FileName: TFarString;
+    constructor Create(const FileName: TFarString; const OverText: PFarChar;
       dirItem: EdsDirectoryItemRef; dirInfo: PEdsDirectoryItemInfo);
     function Execute: Integer; override;
   end;
@@ -69,7 +69,7 @@ end;
 
 { TOverDlg }
 
-constructor TOverDlg.Create(const FileName: TFarString;
+constructor TOverDlg.Create(const FileName: TFarString; const OverText: PFarChar;
   dirItem: EdsDirectoryItemRef; dirInfo: PEdsDirectoryItemInfo);
   function GetFileText(Width: Integer; MsgId: TLanguageID; filetime: TFileTime;
     filesize: Cardinal): TFarString;
@@ -136,7 +136,7 @@ begin
   inherited Create([
   {0} DlgItem(DI_DOUBLEBOX, -1, -1, cSizeX, cSizeY, 0, PFarChar(MWarning)),
   {1} DlgItem(DI_TEXT, cLeftSide, 2, cSizeX - cLeftSide * 2, -1,
-        DIF_CENTERTEXT, PFarChar(MFileAlreadyExists)),
+        DIF_CENTERTEXT, OverText),
   {2} DlgItem(DI_TEXT, cLeftSide, 3, cSizeX - cLeftSide * 2, -1,
         0, FSF.TruncPathStr(PFarChar(NewFileName), cSizeX - cLeftSide * 2)),
   {3} DlgItem(DI_TEXT, cLeftSide - 1, 4, -1, 0, DIF_SEPARATOR, ''),

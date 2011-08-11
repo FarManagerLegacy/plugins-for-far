@@ -82,11 +82,12 @@ type
 
     function RecursiveDownload(dirItem: EdsDirectoryItemRef;
       const DestPath: TFarString; Move: Integer; Silent: Boolean;
-      ProgressBar: TProgressBar; var overall, skipall: Boolean): EdsError;
+      ProgressBar: TProgressBar;
+      var overall, skipall, overroall, skiproall: Boolean): EdsError;
     function DownloadFile(dirItem: EdsDirectoryItemRef;
       dirInfo: PEdsDirectoryItemInfo; DestPath: TFarString; Move: Integer;
       Silent: Boolean; ProgressBar: TProgressBar;
-      var overall, skipall: Boolean): EdsError;
+      var overall, skipall, overroall, skiproall, skipfile: Boolean): EdsError;
     function DeleteDirItem(dirItem: EdsDirectoryItemRef;
       dirInfo: PEdsDirectoryItemInfo; OpMode: Integer;
       var skipall, delallfolder: Boolean): EdsError;
@@ -439,7 +440,7 @@ var
   edserr: EdsError;
   ProgressBar: TProgressBar;
   silent: Boolean;
-  overall, skipall: Boolean;
+  overall, skipall, overroall, skiproall, skipfile: Boolean;
   NewDestPath: array [0..MAX_PATH - 1] of TFarCHar;
 begin
   Result := 0;
@@ -475,8 +476,8 @@ begin
           subtitle := Format(subtitle,
             [ItemsNumber, GetMsg(TLanguageID(Ord(MOneOk) + GetOk(ItemsNumber)))]);
 
-        if FARAPI.InputBox(title, PFarChar(subtitle), 'Copy', DestPath, NewDestPath,
-            MAX_PATH, nil,
+        if FARAPI.InputBox(title, PFarChar(subtitle), 'Copy',{<-Системное имя истории копирования}
+            DestPath, NewDestPath, MAX_PATH, nil,
             {$IFDEF UNICODE}FIB_EDITPATH or{$ENDIF} FIB_BUTTONS) = 0 then
           Exit;
       end
@@ -493,7 +494,10 @@ begin
       if edserr = EDS_ERR_OK then
       begin
         if not silent then
-          ProgressBar := TProgressBar.Create(title, 100, 4)
+          ProgressBar := TProgressBar.Create(title, 100,
+            FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_GETCONFIRMATIONS, nil) and
+              FCS_INTERRUPTOPERATION <> 0,
+            GetMsg(MInterruptedTitle), GetMsg(MInterruptedText), 4)
         else
           ProgressBar := nil;
         try
@@ -503,34 +507,43 @@ begin
           else
             overall := FARAPI.AdvControl(FARAPI.ModuleNumber,
               ACTL_GETCONFIRMATIONS, nil) and FCS_COPYOVERWRITE = 0;
+{$IFDEF UNICODE}
+          overroall := FARAPI.AdvControl(FARAPI.ModuleNumber,
+              ACTL_GETCONFIRMATIONS, nil) and FCS_OVERWRITEDELETEROFILES = 0;
+{$ELSE}
+          overroall := False;
+{$ENDIF}
           skipall := False;
+          skiproall := False;
           for i := 0 to ItemsNumber - 1 do
           begin
             UserData := PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData);
             if UserData^.BaseRefType = brtDirItem then
             begin
               edserr := EdsGetDirectoryItemInfo(UserData^.BaseRef, dirInfo);
+              skipfile := False;
               if edserr = EDS_ERR_OK then
               begin
                 if dirInfo.isFolder = 0 then
                   edserr := DownloadFile(UserData^.BaseRef, @dirInfo, NewDestPath,
-                    Move, silent, ProgressBar, overall, skipall)
+                    Move, silent, ProgressBar, overall, skipall,
+                    overroall, skiproall, skipfile)
                 else
 {$IFDEF UNICODE}
                   edserr := RecursiveDownload(UserData^.BaseRef,
                     AddEndSlash(NewDestPath) + CharToWideChar(dirInfo.szFileName),
-                    Move, silent, ProgressBar, overall, skipall);
+                    Move, silent, ProgressBar, overall, skipall, overroall, skiproall);
 {$ELSE}
                   edserr := RecursiveDownload(UserData^.BaseRef,
                     AddEndSlash(NewDestPath) + dirInfo.szFileName,
-                    Move, silent, ProgressBar, overall, skipall);
+                    Move, silent, ProgressBar, overall, skipall, overroall, skiproall);
 {$ENDIF}
 
 
               end;
               if edserr <> EDS_ERR_OK then
                 Break
-              else
+              else if not skipfile then
                 TPluginPanelItemArray(PanelItem)[i].Flags :=
                   TPluginPanelItemArray(PanelItem)[i].Flags and not PPIF_SELECTED;
             end;
@@ -561,11 +574,7 @@ function ProgressFunc(inPercent: EdsUInt32; inContext: Pointer;
   var outCancel: EdsBool): EdsError; stdcall;
 begin
   with PContextData(inContext)^ do
-    if not FProgressBar.UpdateProgress(inPercent, True, FText) and
-      ((FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_GETCONFIRMATIONS, nil) and
-        FCS_INTERRUPTOPERATION = 0) or
-      (ShowMessage(GetMsg(MInterruptedTitle), GetMsg(MInterruptedText),
-        FMSG_WARNING + FMSG_MB_YESNO) = 0)) then
+    if not FProgressBar.UpdateProgress(inPercent, FText) then
       Result := EDS_ERR_OPERATION_CANCELLED
     else
       Result := EDS_ERR_OK;
@@ -574,7 +583,7 @@ end;
 function TCanon.DownloadFile(dirItem: EdsDirectoryItemRef;
   dirInfo: PEdsDirectoryItemInfo; DestPath: TFarString; Move: Integer;
   Silent: Boolean; ProgressBar: TProgressBar;
-  var overall, skipall: Boolean): EdsError;
+  var overall, skipall, overroall, skiproall, skipfile: Boolean): EdsError;
 var
   stream: EdsStreamRef;
   image: EdsImageRef;
@@ -588,6 +597,7 @@ var
   skipall_delete: Boolean;
   ContextData: TContextData;
   FromName, ToName: TFarString;
+  attr: Cardinal;
 begin
   Result := EDS_ERR_OK;
   skipall_delete := True;
@@ -601,19 +611,26 @@ begin
   if not Silent and FileExists(ToName) then
   begin
     if skipall then
-      Exit
+    begin
+      skipfile := True;
+      Exit;
+    end
     else if not overall then
-      with TOverDlg.Create(ToName, dirItem, dirInfo) do
+      with TOverDlg.Create(ToName, GetMsg(MFileAlreadyExists), dirItem, dirInfo) do
       try
         case Execute of
           //0: // Overwrite
           1: // All
             overall := True;
           2: // Skip
+          begin
+            skipfile := True;
             Exit;
+          end;
           3: // Skip All
           begin
             skipall := True;
+            skipfile := True;
             Exit;
           end;
           4: // Cancel
@@ -622,6 +639,55 @@ begin
       finally
         Free;
       end;
+    if Result <> EDS_ERR_OPERATION_CANCELLED then
+    begin
+{$IFDEF UNICODE}
+      attr := GetFileAttributesW(PFarChar(ToName));
+{$ELSE}
+      attr := GetFileAttributesA(PFarChar(ToName));
+{$ENDIF}
+      if attr and FILE_ATTRIBUTE_READONLY <> 0 then
+      begin
+        if skiproall then
+        begin
+          skipfile := True;
+          Exit;
+        end
+        else if not overroall then
+          with TOverDlg.Create(ToName, GetMsg(MFileReadOnly), dirItem, dirInfo) do
+          try
+            case Execute of
+              //0: // Overwrite
+              1: // All
+                overroall := True;
+              2: // Skip
+              begin
+                skipfile := True;
+                Exit;
+              end;
+              3: // Skip All
+              begin
+                skiproall := True;
+                skipfile := True;
+                Exit;
+              end;
+              4: // Cancel
+                Result := EDS_ERR_OPERATION_CANCELLED;
+            end;
+          finally
+            Free;
+          end;
+        if Result <> EDS_ERR_OPERATION_CANCELLED then
+        begin
+          attr := attr and not FILE_ATTRIBUTE_READONLY;
+{$IFDEF UNICODE}
+          SetFileAttributesW(PFarChar(ToName), attr);
+{$ELSE}
+          SetFileAttributesA(PFarChar(ToName), attr);
+{$ENDIF}
+        end;
+      end;
+    end;
   end;
 
   if Result = EDS_ERR_OK then
@@ -716,12 +782,14 @@ end;
 
 function TCanon.RecursiveDownload(dirItem: EdsDirectoryItemRef;
   const DestPath: TFarString; Move: Integer; Silent: Boolean;
-  ProgressBar: TProgressBar; var overall, skipall: Boolean): EdsError;
+  ProgressBar: TProgressBar;
+  var overall, skipall, overroall, skiproall: Boolean): EdsError;
 var
   count, i: EdsUInt32;
   childRef: EdsDirectoryItemRef;
   childInfo: EdsDirectoryItemInfo;
   skipall_delete: Boolean;
+  skipfile: Boolean;
 begin
   if not DirectoryExists(DestPath) then
   begin
@@ -749,15 +817,16 @@ begin
 {$IFDEF UNICODE}
             Result := RecursiveDownload(childRef,
               AddEndSlash(DestPath) + CharToWideChar(childInfo.szFileName),
-              Move, silent, ProgressBar, overall, skipall)
+              Move, silent, ProgressBar, overall, skipall, overroall, skiproall)
 {$ELSE}
             Result := RecursiveDownload(childRef,
               AddEndSlash(DestPath) + childInfo.szFileName,
-              Move, silent, ProgressBar, overall, skipall)
+              Move, silent, ProgressBar, overall, skipall, overroall, skiproall)
 {$ENDIF}
           else
             Result := DownloadFile(childRef, @childInfo, DestPath,
-              Move, silent, ProgressBar, overall, skipall);
+              Move, silent, ProgressBar, overall, skipall, overroall, skiproall,
+              skipfile);
         end;
         EdsRelease(childRef);
         if Result <> EDS_ERR_OK then
@@ -961,7 +1030,10 @@ begin
         GetMem(PanelItem, ItemsNumber * SizeOf(TPluginPanelItem));
         ZeroMemory(PanelItem, ItemsNumber * SizeOf(TPluginPanelItem));
         if getDateTime and (count > 10) then
-          ProgressBar := TProgressBar.Create('Reading', count - 1)
+          ProgressBar := TProgressBar.Create(GetMsg(MReading), count - 1,
+            FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_GETCONFIRMATIONS, nil) and
+              FCS_INTERRUPTOPERATION <> 0,
+            GetMsg(MInterruptedTitle), GetMsg(MInterruptedText))
         else
           ProgressBar := nil;
         try
@@ -1033,8 +1105,8 @@ begin
                   Result := True;
                 end;
             end;
-            if Assigned(ProgressBar) then
-              ProgressBar.UpdateProgress(i);
+            if Assigned(ProgressBar) and not ProgressBar.UpdateProgress(i) then
+              Break;
           end;
         finally
           if Assigned(stream) then
@@ -1178,7 +1250,7 @@ function TCanon.SetDirectory(Dir: PFarChar; OpMode: Integer): Integer;
     Result := '';
     if (EdsGetPropertySize(camera, PropertyId, 0, datatype, size) = EDS_ERR_OK) then
     begin
-      if EdsEnumDataType(datatype) = kEdsDataType_String then
+        if EdsEnumDataType(datatype) = kEdsDataType_String then
       begin
         p := @str;
         if EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)) = EDS_ERR_OK then
@@ -1313,6 +1385,8 @@ function TCanon.SetDirectory(Dir: PFarChar; OpMode: Integer): Integer;
         end;
       end;
   end;
+const
+  cUpDir = '..';
 var
   p, p1: Integer;
   NewDirectory, CurDir: TFarString;
@@ -1332,7 +1406,7 @@ begin
   end
   else if (FCurFindDataItem >= 0) and (FCurFindDataItem < Length(FFindDataItem)) then
   begin
-    if Dir = '..' then
+    if Dir = cUpDir then
     begin
       if ChDirUp(FCurFindDataItem, FCurDirectory) then
         Result := 1;
@@ -1363,7 +1437,7 @@ begin
         while err_ok and (p > 0) do
         begin
           CurDir := Copy(Dir, p1, p - p1);
-          if CurDir = '..' then
+          if CurDir = cUpDir then
             err_ok := ChDirUp(CurFindDataItem, NewDirectory)
           else if CurDir <> '' then
             err_ok := ChDirDown(PFarChar(CurDir), CurFindDataItem, NewDirectory);
@@ -1373,7 +1447,7 @@ begin
         if err_ok then
         begin
           CurDir := Copy(Dir, p1, Length(Dir) - p1 + 1);
-          if CurDir = '..' then
+          if CurDir = cUpDir then
             err_ok := ChDirUp(CurFindDataItem, NewDirectory)
           else if CurDir <> '' then
             err_ok := ChDirDown(PFarChar(CurDir), CurFindDataItem, NewDirectory);

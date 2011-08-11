@@ -12,7 +12,8 @@ uses
 {$ELSE}
   plugin,
 {$ENDIF}
-  UTypes;
+  UTypes,
+  UUtils;
 
 const
   cMaxBuf = 512;
@@ -26,15 +27,20 @@ type
     FTitle, FConsoleTitle: TFarString;
     FAddLine: Integer;
     FTitleBuf: array[0..cMaxBuf - 1] of TFarChar;
+    FEsc: Boolean;
+    FConfirmTitle, FConfirmText: PFarChar;
 
     function CheckForEsc: Boolean;
   public
     constructor Create(const aTitle: TFarString; aMaxCounter: Integer;
-      aAddLine: Integer = 0);
+      aAddLine: Integer = 0); overload;
+    constructor Create(const aTitle: TFarString; aMaxCounter: Integer;
+      aEsc: Boolean; aConfirmTitle: PFarChar = nil; aConfirmText: PFarChar = nil;
+      aAddLine: Integer = 0); overload;
     destructor Destroy; override;
-    function UpdateProgress(counter: Integer; esc: Boolean = False;
+    function UpdateProgress(counter: Integer;
       const text: TFarString = ''): Boolean;
-    function IncProgress(addcounter: Integer = 1; esc: Boolean = False;
+    function IncProgress(addcounter: Integer = 1;
       const text: TFarString = ''): Boolean;
   end;
 
@@ -97,6 +103,8 @@ begin
   inherited Create;
 {$IFDEF UNICODE}
   GetConsoleTitleW(FTitleBuf, cMaxBuf);
+  FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSSTATE,
+    Pointer(PS_NORMAL));
 {$ELSE}
   GetConsoleTitleA(FTitleBuf, cMaxBuf);
 {$ENDIF}
@@ -119,12 +127,28 @@ begin
     PPCharArray(@str[1]), 0, 0);
   FMaxCounter := aMaxCounter;
   FLastPos := 0;
+  FEsc := False;
+end;
+
+constructor TProgressBar.Create(const aTitle: TFarString; aMaxCounter: Integer;
+  aEsc: Boolean; aConfirmTitle, aConfirmText: PFarChar; aAddLine: Integer);
+begin
+  Create(aTitle, aMaxCounter, aAddLine);
+  FEsc := aEsc;
+  if FEsc then
+  begin
+    FConsoleTitle := aConfirmTitle;
+    FConfirmText := aConfirmText;
+  end;
 end;
 
 destructor TProgressBar.Destroy;
 begin
 {$IFDEF UNICODE}
   SetConsoleTitleW(FTitleBuf);
+  FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSSTATE,
+    Pointer(PS_NOPROGRESS));
+  FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_PROGRESSNOTIFY, nil);
 {$ELSE}
   SetConsoleTitleA(FTitleBuf);
 {$ENDIF}
@@ -132,7 +156,7 @@ begin
   inherited;
 end;
 
-function TProgressBar.IncProgress(addcounter: Integer; esc: Boolean;
+function TProgressBar.IncProgress(addcounter: Integer;
   const text: TFarString): Boolean;
 var
   counter: Integer;
@@ -145,10 +169,10 @@ begin
   end
   else
     counter := FMaxCounter;
-  Result := UpdateProgress(counter, esc, text);
+  Result := UpdateProgress(counter, text);
 end;
 
-function TProgressBar.UpdateProgress(counter: Integer; esc: Boolean;
+function TProgressBar.UpdateProgress(counter: Integer; 
   const text: TFarString): Boolean;
 var
   pos, ps: Integer;
@@ -183,7 +207,9 @@ begin
 {$ENDIF}
     end;
   end;
-  Result := not (esc and CheckForEsc);
+  Result := not (FEsc and CheckForEsc and
+    (not Assigned(FConfirmTitle) or
+    (ShowMessage(FConfirmTitle, FConfirmText, FMSG_WARNING + FMSG_MB_YESNO) = 0)));
 end;
 
 end.
