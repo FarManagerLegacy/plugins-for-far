@@ -83,9 +83,18 @@ type
     MEdSdkError,
 
     MCameraInfo,
+    MSerialNumber,
+    MFirmwareVersion,
+    MBodyDateTime,
+    MBatteryLevel,
+    MACPower,
+    MBatteryQuality,
+    MNoDegradation,
+    MSlightDegradation,
+    MDegradedHalf,
+    MDegradedLow,
 
     MVolumeInfo,
-
     MStorageType,
     MNoCard,
     M_CF,

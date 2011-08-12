@@ -46,6 +46,10 @@ type
   TCameraInfo = record
     CameraName: TFarString;
     BodyID: TFarString;
+    FirmwareVersion: TFarString;
+    DateTime: TFarString;
+    BatteryLevel: TFarString;
+    BatteryQuality: TFarString;
   end;
 
   TVolumeInfo = record
@@ -86,7 +90,7 @@ type
       var overall, skipall, overroall, skiproall: Boolean): EdsError;
     function DownloadFile(dirItem: EdsDirectoryItemRef;
       dirInfo: PEdsDirectoryItemInfo; DestPath: TFarString; Move: Integer;
-      Silent: Boolean; ProgressBar: TProgressBar;
+      Silent: Boolean; ProgressBar: TProgressBar; attrib: Cardinal;
       var overall, skipall, overroall, skiproall, skipfile: Boolean): EdsError;
     function DeleteDirItem(dirItem: EdsDirectoryItemRef;
       dirInfo: PEdsDirectoryItemInfo; OpMode: Integer;
@@ -397,12 +401,22 @@ begin
         case FFindDataItem[FCurFindDataItem].ParentData^.BaseRefType of
           brtCamera:
           begin
-            Info.InfoLinesNumber := 2;
+            Info.InfoLinesNumber := 7;
             SetInfoLinesCount(Info.InfoLinesNumber);
             FInfoLines^[0].Separator := 1;
             SetInfoLine(0, GetMsg(MCameraInfo), True);
             SetInfoLine(1, GetMsg(MCameraName), True);
             SetInfoLine(1, PFarChar(FCameraInfo.CameraName), False);
+            SetInfoLine(2, GetMsg(MSerialNumber), True);
+            SetInfoLine(2, PFarChar(FCameraInfo.BodyID), False);
+            SetInfoLine(3, GetMsg(MFirmwareVersion), True);
+            SetInfoLine(3, PFarChar(FCameraInfo.FirmwareVersion), False);
+            SetInfoLine(4, GetMsg(MBodyDateTime), True);
+            SetInfoLine(4, PFarChar(FCameraInfo.DateTime), False);
+            SetInfoLine(5, GetMsg(MBatteryLevel), True);
+            SetInfoLine(5, PFarChar(FCameraInfo.BatteryLevel), False);
+            SetInfoLine(6, GetMsg(MBatteryQuality), True);
+            SetInfoLine(6, PFarChar(FCameraInfo.BatteryQuality), False);
           end;
           brtVolume:
           begin
@@ -526,8 +540,9 @@ begin
               begin
                 if dirInfo.isFolder = 0 then
                   edserr := DownloadFile(UserData^.BaseRef, @dirInfo, NewDestPath,
-                    Move, silent, ProgressBar, overall, skipall,
-                    overroall, skiproall, skipfile)
+                    Move, silent, ProgressBar,
+                    TPluginPanelItemArray(PanelItem)[i].FindData.dwFileAttributes,
+                    overall, skipall, overroall, skiproall, skipfile)
                 else
 {$IFDEF UNICODE}
                   edserr := RecursiveDownload(UserData^.BaseRef,
@@ -582,7 +597,7 @@ end;
 
 function TCanon.DownloadFile(dirItem: EdsDirectoryItemRef;
   dirInfo: PEdsDirectoryItemInfo; DestPath: TFarString; Move: Integer;
-  Silent: Boolean; ProgressBar: TProgressBar;
+  Silent: Boolean; ProgressBar: TProgressBar; attrib: Cardinal;
   var overall, skipall, overroall, skiproall, skipfile: Boolean): EdsError;
 var
   stream: EdsStreamRef;
@@ -763,6 +778,11 @@ begin
           SetFileTime(hFile, nil, nil, @filetime);
           CloseHandle(hFile);
         end;
+{$IFDEF UNICODE}
+        SetFileAttributesW(PFarChar(ToName), attrib);
+{$ELSE}
+        SetFileAttributesA(PFarChar(ToName), attrib);
+{$ENDIF}
         if Move <> 0 then
           Result := DeleteDirItem(dirItem, dirInfo, OPM_SILENT, skipall_delete,
             skipall_delete);
@@ -790,6 +810,8 @@ var
   childInfo: EdsDirectoryItemInfo;
   skipall_delete: Boolean;
   skipfile: Boolean;
+  fileAttr: EdsFileAttributes;
+  dwFileAttributes: Cardinal;
 begin
   if not DirectoryExists(DestPath) then
   begin
@@ -824,9 +846,27 @@ begin
               Move, silent, ProgressBar, overall, skipall, overroall, skiproall)
 {$ENDIF}
           else
+          begin
+            if EdsGetAttribute(childRef, fileAttr) = EDS_ERR_OK then
+            begin
+              dwFileAttributes := 0;
+              if Ord(fileAttr) and Ord(kEdsFileAttribute_Normal) <> 0 then
+                dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_NORMAL;
+              if Ord(fileAttr) and Ord(kEdsFileAttribute_ReadOnly) <> 0 then
+                dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_READONLY;
+              if Ord(fileAttr) and Ord(kEdsFileAttribute_Hidden) <> 0 then
+                dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_HIDDEN;
+              if Ord(fileAttr) and Ord(kEdsFileAttribute_System) <> 0 then
+                dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_SYSTEM;
+              if Ord(fileAttr) and Ord(kEdsFileAttribute_Archive) <> 0 then
+                dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_ARCHIVE;
+            end
+            else
+              dwFileAttributes := FILE_ATTRIBUTE_ARCHIVE;
             Result := DownloadFile(childRef, @childInfo, DestPath,
-              Move, silent, ProgressBar, overall, skipall, overroall, skiproall,
-              skipfile);
+              Move, silent, ProgressBar, dwFileAttributes,
+              overall, skipall, overroall, skiproall, skipfile);
+          end;
         end;
         EdsRelease(childRef);
         if Result <> EDS_ERR_OK then
@@ -1081,22 +1121,18 @@ begin
                   dirItem1 := dirItem;
                   edserr := EdsGetAttribute(dirItem1, fileAttr);
                   if edserr = EDS_ERR_OK then
+                  with FindData do
                   begin
                     if Ord(fileAttr) and Ord(kEdsFileAttribute_Normal) <> 0 then
-                      FindData.dwFileAttributes := FindData.dwFileAttributes or
-                        FILE_ATTRIBUTE_NORMAL;
+                      dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_NORMAL;
                     if Ord(fileAttr) and Ord(kEdsFileAttribute_ReadOnly) <> 0 then
-                      FindData.dwFileAttributes := FindData.dwFileAttributes or
-                        FILE_ATTRIBUTE_READONLY;
+                      dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_READONLY;
                     if Ord(fileAttr) and Ord(kEdsFileAttribute_Hidden) <> 0 then
-                      FindData.dwFileAttributes := FindData.dwFileAttributes or
-                        FILE_ATTRIBUTE_HIDDEN;
+                      dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_HIDDEN;
                     if Ord(fileAttr) and Ord(kEdsFileAttribute_System) <> 0 then
-                      FindData.dwFileAttributes := FindData.dwFileAttributes or
-                        FILE_ATTRIBUTE_SYSTEM;
+                      dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_SYSTEM;
                     if Ord(fileAttr) and Ord(kEdsFileAttribute_Archive) <> 0 then
-                      FindData.dwFileAttributes := FindData.dwFileAttributes or
-                        FILE_ATTRIBUTE_ARCHIVE;
+                      dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_ARCHIVE;
                   end;
                   GetMem(PanelUserData, SizeOf(TPanelUserData));
                   PanelUserData^.BaseRef := dirItem;
@@ -1232,6 +1268,29 @@ begin
   end;
 end;
 
+type
+  TFormatFunction = function(const Value): TFarString;
+
+function FormatBatteryLevel(const Value): TFarString;
+begin
+  if EdsUInt32(Value) = $ffffffff then
+    Result := GetMsgStr(MACPower)
+  else
+    Result := Format('%d%%', [EdsUInt32(Value)]);
+end;
+
+function FormatBatteryQuality(const Value): TFarString;
+begin
+  case EdsUInt32(Value) of
+    3: Result := GetMsgStr(MNoDegradation);
+    2: Result := GetMsgStr(MSlightDegradation);
+    1: Result := GetMsgStr(MDegradedHalf);
+    0: Result := GetMsgStr(MDegradedLow);
+    else
+      Result := '';
+  end;
+end;
+
 function TCanon.SetDirectory(Dir: PFarChar; OpMode: Integer): Integer;
   function ChDirDown(NewDir: PFarChar; var NewFindDataItem: Integer;
     var NewDirectory: TFarString): Boolean;
@@ -1239,7 +1298,10 @@ function TCanon.SetDirectory(Dir: PFarChar; OpMode: Integer): Integer;
     i, CurFindDataItem: Integer;
     UserData: PPanelUserData;
     edserr: EdsError;
-  function GetProperty(camera: EdsCameraRef; PropertyId: EdsPropertyID): TFarString;
+  function GetProperty(camera: EdsCameraRef; PropertyId: EdsPropertyID;
+    ff: TFormatFunction = nil): TFarString;
+  const
+    cDateTimeFmt = '%02d.%02d.%04d %02d:%02d:%02d';
   var
     str: array[0..63] of EdsChar;
     data: EdsUInt32;
@@ -1254,25 +1316,34 @@ function TCanon.SetDirectory(Dir: PFarChar; OpMode: Integer): Integer;
       begin
         p := @str;
         if EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)) = EDS_ERR_OK then
-          Result := str;
+          if Assigned(ff) then
+            Result := ff(str)
+          else
+{$IFDEF UNICODE}
+            Result := CharToWideChar(str);
+{$ELSE}
+            Result := str;
+{$ENDIF}
       end
       else if EdsEnumDataType(datatype) = kEdsDataType_Time then
       begin
         P := @datetime;
         if EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)) = EDS_ERR_OK then
-          Result := Format('%02d.%02d.%04d %02d:%02d:%02d', [
-            datetime.year,
-            datetime.month,
-            datetime.day,
-            datetime.hour,
-            datetime.minute,
-            datetime.second]);
+          if Assigned(ff) then
+            Result := ff(datetime)
+          else
+            Result := Format(cDateTimeFmt, [
+              datetime.year, datetime.month, datetime.day,
+              datetime.hour, datetime.minute, datetime.second]);
       end
       else if EdsEnumDataType(datatype) in [kEdsDataType_UInt32, kEdsDataType_Int32] then
       begin
         p := @data;
         if EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)) = EDS_ERR_OK then
-          Result := Format('%d', [data]);
+          if Assigned(ff) then
+            Result := ff(data)
+          else
+            Result := Format('%d', [data]);
       end;
     end;
   end;
@@ -1319,12 +1390,14 @@ function TCanon.SetDirectory(Dir: PFarChar; OpMode: Integer): Integer;
                 with FCameraInfo do
                 begin
                   CameraName := NewDir;
-                  GetProperty(UserData^.BaseRef, kEdsPropID_ProductName);
-                  GetProperty(UserData^.BaseRef, kEdsPropID_BodyIdEx);
-                  GetProperty(UserData^.BaseRef, kEdsPropID_DateTime);
-                  GetProperty(UserData^.BaseRef, kEdsPropID_FirmwareVersion);
-                  GetProperty(UserData^.BaseRef, kEdsPropID_BatteryLevel);
-                  GetProperty(UserData^.BaseRef, kEdsPropID_BatteryQuality);
+                  BodyID := GetProperty(UserData^.BaseRef, kEdsPropID_BodyIdEx);
+                  FirmwareVersion := GetProperty(UserData^.BaseRef, kEdsPropID_FirmwareVersion);
+                  DateTime := GetProperty(UserData^.BaseRef, kEdsPropID_DateTime);
+                  BatteryLevel := GetProperty(UserData^.BaseRef,
+                    kEdsPropID_BatteryLevel, @FormatBatteryLevel);
+                  BatteryQuality := GetProperty(UserData^.BaseRef,
+                    kEdsPropID_BatteryQuality, @FormatBatteryQuality);
+                  // GetProperty(UserData^.BaseRef, kEdsPropID_ProductName);
                 end;
               end;
             end

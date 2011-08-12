@@ -12,13 +12,13 @@ BEGIN
     BEGIN
         BLOCK "041904E3"
         BEGIN
-            VALUE "FileDescription", "EOSBrowser Plugin Module"0x0L
-            VALUE "FileVersion", "1.0.0.0"0x0L
-            VALUE "InternalName", "EOSBrowser.dll"0x0L
-            VALUE "LegalCopyright", "© Andrew V. Andreenkov"0x0L
-            VALUE "OriginalFilename", "EOSBrowser.dll"0x0L
-            VALUE "ProductName", "EOSBrowser Plugin"0x0L
-            VALUE "ProductVersion", "1.0.0.0"0x0L
+            VALUE "FileDescription", "EOSBrowser Plugin Module\0"
+            VALUE "FileVersion", "1.0.0.0\0"
+            VALUE "InternalName", "EOSBrowser.dll\0"
+            VALUE "LegalCopyright", "© Andrew V. Andreenkov\0"
+            VALUE "OriginalFilename", "EOSBrowser.dll\0"
+            VALUE "ProductName", "EOSBrowser Plugin\0"
+            VALUE "ProductVersion", "1.0.0.0\0"
         END
     END
     BLOCK "VarFileInfo"
