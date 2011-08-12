@@ -46,11 +46,13 @@ type
 
 implementation
 
+uses SysUtils;
+
 const
   cSizeTherm = 43;
   cSizeX = cSizeTherm;
 
- {$IFDEF UNICODE}
+{$IFDEF UNICODE}
   chrVertLine = #$2502;
   chrUpArrow  = #$25B2;
   chrDnArrow  = #$25BC;
@@ -58,7 +60,7 @@ const
   chrDkHatch  = #$2593;
   chrBrick    = #$2588;
   chrCheck    = #$FB;
- {$ELSE}
+{$ELSE}
   chrVertLine = #$B3;
   chrUpArrow  = #$1E;
   chrDnArrow  = #$1F;
@@ -66,7 +68,7 @@ const
   chrDkHatch  = #$B2;
   chrBrick    = #$DB;
   chrCheck    = #$FB;
- {$ENDIF}
+{$ENDIF}
 
   //chrHatch = #$B0;
   //chrBrick = #$DB;
@@ -109,7 +111,11 @@ begin
   GetConsoleTitleA(FTitleBuf, cMaxBuf);
 {$ENDIF}
   FTitle := aTitle;
-  FConsoleTitle := FTitle + cFar;
+  FConsoleTitle := FTitleBuf;
+  i := PosEx(cFar, FConsoleTitle);
+  if i > 0 then
+    Delete(FConsoleTitle, 1, i - 1);
+  FConsoleTitle := FTitle + FConsoleTitle;
   FLastPS := -1;
 {$IFDEF UNICODE}
   SetConsoleTitleW(PFarChar(FConsoleTitle));
@@ -172,12 +178,15 @@ begin
   Result := UpdateProgress(counter, text);
 end;
 
-function TProgressBar.UpdateProgress(counter: Integer; 
+function TProgressBar.UpdateProgress(counter: Integer;
   const text: TFarString): Boolean;
 var
   pos, ps: Integer;
   str: TFarString;
   i: Integer;
+{$IFDEF UNICODE}
+  pv: TProgressValue;
+{$ENDIF}
 begin
   if counter <> 0 then
   begin
@@ -201,15 +210,40 @@ begin
         PPCharArray(@str[1]), 0, 0);
       if FLastPS <> ps then
 {$IFDEF UNICODE}
+      begin
         SetConsoleTitleW(PFarChar('{' + Int2Str(ps) + '%} ' + FConsoleTitle));
+        pv.Completed := counter;
+        pv.Total := FMaxCounter;
+        FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSVALUE, @pv);
+      end;
 {$ELSE}
         SetConsoleTitleA(PFarChar('{' + Int2Str(ps) + '%} ' + FConsoleTitle));
 {$ENDIF}
     end;
   end;
-  Result := not (FEsc and CheckForEsc and
-    (not Assigned(FConfirmTitle) or
-    (ShowMessage(FConfirmTitle, FConfirmText, FMSG_WARNING + FMSG_MB_YESNO) = 0)));
+  Result := not (FEsc and CheckForEsc);
+  if not Result then
+  begin
+    if Assigned(FConfirmTitle) then
+    begin
+{$IFDEF UNICODE}
+      FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSVALUE,
+        Pointer(PS_PAUSED));
+      try
+{$ENDIF}
+        Result := ShowMessage(FConfirmTitle, FConfirmText,
+          FMSG_WARNING + FMSG_MB_YESNO) <> 0;
+{$IFDEF UNICODE}
+      finally
+        FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSVALUE,
+          Pointer(PS_NORMAL));
+        pv.Completed := counter;
+        pv.Total := FMaxCounter;
+        FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSVALUE, @pv);
+      end;
+{$ENDIF}
+    end;
+  end;
 end;
 
 end.

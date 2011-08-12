@@ -69,6 +69,16 @@
 "EDSDK error"
 
 "Camera Info"
+"Body serial number"
+"Firmware version"
+"Body date and time"
+"Battery level"
+"AC power"
+"Battery quality"
+"No degradation"
+"Slight degradation"
+"Degraded (Half)"
+"Degraded (Low)"
 
 "Volume Info"
 "Storage type"

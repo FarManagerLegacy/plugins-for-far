@@ -12,13 +12,13 @@ BEGIN
     BEGIN
         BLOCK "041904E3"
         BEGIN
-            VALUE "FileDescription", "DirectoryHotList Plugin Module"0x0L
-            VALUE "FileVersion", "1.0.0.0"0x0L
-            VALUE "InternalName", "DirHotList.dll"0x0L
-            VALUE "LegalCopyright", "© Andrew V. Andreenkov"0x0L
-            VALUE "OriginalFilename", "DirHotList.dll"0x0L
-            VALUE "ProductName", "DirHotList Plugin"0x0L
-            VALUE "ProductVersion", "1.0.0.0"0x0L
+            VALUE "FileDescription", "DirectoryHotList Plugin Module\0"
+            VALUE "FileVersion", "1.0.0.0\0"
+            VALUE "InternalName", "DirHotList.dll\0"
+            VALUE "LegalCopyright", "© Andrew V. Andreenkov\0"
+            VALUE "OriginalFilename", "DirHotList.dll\0"
+            VALUE "ProductName", "DirHotList Plugin\0"
+            VALUE "ProductVersion", "1.0.0.0\0"
         END
     END
     BLOCK "VarFileInfo"
