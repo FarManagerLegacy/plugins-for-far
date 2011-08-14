@@ -51,8 +51,8 @@ type
     MTwoOk,
     MFiveOk,
 
-    MInterruptedTitle,
-    MInterruptedText,
+    MInterruptTitle,
+    MInterruptText,
 
     MFileAlreadyExists,
     MFileReadOnly,
@@ -81,6 +81,7 @@ type
     MInitError,
     MLibNotFound,
     MEdSdkError,
+    MOneSessionAllowed,
 
     MCameraInfo,
     MSerialNumber,
@@ -107,7 +108,9 @@ type
     MAccessError,
 
     MMaxCapacity,
-    MFreeSpace
+    MFreeSpace,
+
+    MPropertyUnavailable
   );
 
 function GetMsg(MsgId: TLanguageID): PFarChar;
