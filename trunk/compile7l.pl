@@ -24,7 +24,7 @@ my @UStrAdd = ('', ';UNICODE_CTRLS');
 open CFG, '+<', "$appname.cfg";
 undef $/;
 my $cfg = <CFG>;
-$cfg =~ s/^(-D.*)UNICODE(?!\w);?/$1/mi;
+while ($cfg =~ s/^(-D.*)UNICODE[^;]*;?/$1/mi) {};
 $cfg =~ s/^-E.*$/-E"..\\Bin\\$UStr[$Unicode]\\$appname"/mi;
 $cfg =~ s/^-N.*$/-N"..\\Dcu\\$UStr[$Unicode]\\$appname"/mi;
 seek CFG, 0, 0;

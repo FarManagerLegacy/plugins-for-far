@@ -25,32 +25,35 @@ type
     FSaveScreen: THandle;
     FMaxCounter: Integer;
     FTitle, FConsoleTitle: TFarString;
-    FAddLine: Integer;
+    FLinesBefore, FLinesAfter: Integer;
     FTitleBuf: array[0..cMaxBuf - 1] of TFarChar;
     FEsc: Boolean;
     FConfirmTitle, FConfirmText: PFarChar;
+    FSizeProgress: Integer;
+    FShowPs: Boolean;
 
     function CheckForEsc: Boolean;
   public
     constructor Create(const aTitle: TFarString; aMaxCounter: Integer;
-      aAddLine: Integer = 0); overload;
+      aShowPs: Boolean = True;
+      aLinesBefore: Integer = 0; aLinesAfter: Integer = 0); overload;
     constructor Create(const aTitle: TFarString; aMaxCounter: Integer;
       aEsc: Boolean; aConfirmTitle: PFarChar = nil; aConfirmText: PFarChar = nil;
-      aAddLine: Integer = 0); overload;
+      aShowPs: Boolean = True;
+      aLinesBefore: Integer = 0; aLinesAfter: Integer = 0); overload;
     destructor Destroy; override;
     function UpdateProgress(counter: Integer;
-      const text: TFarString = ''): Boolean;
+      const TextBefore: TFarString = ''; const TextAfter: TFarString = ''): Boolean;
     function IncProgress(addcounter: Integer = 1;
-      const text: TFarString = ''): Boolean;
+      const TextBefore: TFarString = ''; const TextAfter: TFarString = ''): Boolean;
+    property LinesBefore: Integer read FLinesBefore;
+    property LinesAfter: Integer read FLinesAfter;
   end;
 
 implementation
 
-uses SysUtils;
-
 const
-  cSizeTherm = 43;
-  cSizeX = cSizeTherm;
+  cSizeProgress = 43;
 
 {$IFDEF UNICODE}
   chrVertLine = #$2502;
@@ -96,8 +99,8 @@ begin
   until False;
 end;
 
-constructor TProgressBar.Create(const aTitle: TFarString; aMaxCounter,
-  aAddLine: Integer);
+constructor TProgressBar.Create(const aTitle: TFarString; aMaxCounter: Integer;
+  aShowPs: Boolean; aLinesBefore, aLinesAfter: Integer);
 var
   i: Integer;
   str: TFarString;
@@ -122,12 +125,22 @@ begin
 {$ELSE}
   SetConsoleTitleA(PFarChar(FConsoleTitle));
 {$ENDIF}
-  FAddLine := aAddLine;
+  FLinesBefore := aLinesBefore;
+  FLinesAfter := aLinesAfter;
+  FShowPs := aShowPs;
   str := FTitle + #10;
-  for i := 0 to FAddLine - 1 do
+  for i := 0 to FLinesBefore - 1 do
     str := str + #10;
-  for i := 1 to cSizeX do
+  FSizeProgress := cSizeProgress;
+  if FShowPs then
+    Dec(FSizeProgress, 5);
+  for i := 1 to FSizeProgress do
     str := str + chrHatch;
+  if FShowPs then
+    str := str + '   0%';
+  str := str + #10;
+  for i := 0 to FLinesAfter - 1 do
+    str := str + #10;
   FSaveScreen := FARAPI.SaveScreen(0, 0, -1, -1);
   FARAPI.Message(FARAPI.ModuleNumber, FMSG_ALLINONE + FMSG_LEFTALIGN, nil,
     PPCharArray(@str[1]), 0, 0);
@@ -137,14 +150,20 @@ begin
 end;
 
 constructor TProgressBar.Create(const aTitle: TFarString; aMaxCounter: Integer;
-  aEsc: Boolean; aConfirmTitle, aConfirmText: PFarChar; aAddLine: Integer);
+  aEsc: Boolean; aConfirmTitle, aConfirmText: PFarChar;
+  aShowPs: Boolean; aLinesBefore, aLinesAfter: Integer);
 begin
-  Create(aTitle, aMaxCounter, aAddLine);
+  Create(aTitle, aMaxCounter, aShowPs, aLinesBefore, aLinesAfter);
   FEsc := aEsc;
   if FEsc then
   begin
-    FConsoleTitle := aConfirmTitle;
+    FConfirmTitle := aConfirmTitle;
     FConfirmText := aConfirmText;
+  end
+  else
+  begin
+    FConfirmTitle := nil;
+    FConfirmText := nil;
   end;
 end;
 
@@ -163,7 +182,7 @@ begin
 end;
 
 function TProgressBar.IncProgress(addcounter: Integer;
-  const text: TFarString): Boolean;
+  const TextBefore, TextAfter: TFarString): Boolean;
 var
   counter: Integer;
 begin
@@ -175,11 +194,11 @@ begin
   end
   else
     counter := FMaxCounter;
-  Result := UpdateProgress(counter, text);
+  Result := UpdateProgress(counter, TextBefore, TextAfter);
 end;
 
 function TProgressBar.UpdateProgress(counter: Integer;
-  const text: TFarString): Boolean;
+  const TextBefore, TextAfter: TFarString): Boolean;
 var
   pos, ps: Integer;
   str: TFarString;
@@ -192,20 +211,27 @@ begin
   begin
     if FLastPos > FMaxCounter then
       FLastPos := FMaxCounter;
-    if (FLastPos <> counter) or ((FAddLine > 0) and (text <> '')) then
+    if (FLastPos <> counter) or
+      ((FLinesBefore > 0) and (TextBefore <> '')) or
+      ((FLinesAfter > 0) and (TextAfter <> '')) then
     begin
       ps := counter * 100 div FMaxCounter;
       FLastPos := counter;
-      pos := counter * cSizeX div FMaxCounter;
+      pos := counter * FSizeProgress div FMaxCounter;
       str := FTitle + #10;
-      if FAddLine > 0 then
-         str := str + text + #10;
+      if FLinesBefore > 0 then
+         str := str + TextBefore + #10;
       if pos <> 0 then
         for i := 1 to pos do
           str := str + chrBrick;
-      if pos <> cSizeX then
-        for i := pos + 1 to cSizeX do
+      if pos <> FSizeProgress then
+        for i := pos + 1 to FSizeProgress do
           str := str + chrHatch;
+      if FShowPs then
+        str := str + Format(' %3d%%', [ps]);
+      str := str + #10;
+      if FLinesAfter > 0 then
+         str := str + TextAfter;
       FARAPI.Message(FARAPI.ModuleNumber, FMSG_ALLINONE + FMSG_LEFTALIGN, nil,
         PPCharArray(@str[1]), 0, 0);
       if FLastPS <> ps then
@@ -227,7 +253,7 @@ begin
     if Assigned(FConfirmTitle) then
     begin
 {$IFDEF UNICODE}
-      FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSVALUE,
+      FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSSTATE,
         Pointer(PS_PAUSED));
       try
 {$ENDIF}
@@ -235,7 +261,7 @@ begin
           FMSG_WARNING + FMSG_MB_YESNO) <> 0;
 {$IFDEF UNICODE}
       finally
-        FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSVALUE,
+        FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSSTATE,
           Pointer(PS_NORMAL));
         pv.Completed := counter;
         pv.Total := FMaxCounter;

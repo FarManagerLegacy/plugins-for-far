@@ -109,7 +109,7 @@ type
     procedure GetOpenPluginInfo(var Info: TOpenPluginInfo);
     function GetFindData(var PanelItem: PPluginPanelItem;
       var ItemsNumber: Integer; OpMode: Integer): Integer;
-    function SetDirectory(Dir: PFarChar; OpMode: Integer): Integer;
+    function SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
     function DeleteFiles(PanelItem: PPluginPanelItem; ItemsNumber,
       OpMode: Integer): Integer;
     function GetFiles(PanelItem: PPluginPanelItem; ItemsNumber, Move: Integer;
@@ -186,6 +186,7 @@ type
 var
   _RefCount: Integer;
   IsConnect: Boolean;
+  Session: EdsBaseRef;
 
 constructor TCanon.Create(const FileName: TFarString);
 var
@@ -326,6 +327,7 @@ begin
         begin
           EdsCloseSession(BaseRef);
           FCurrentSession := nil;
+          Session := nil;
         end;
         EdsRelease(BaseRef);
 {$IFDEF UNICODE}
@@ -456,6 +458,7 @@ var
   silent: Boolean;
   overall, skipall, overroall, skiproall, skipfile: Boolean;
   NewDestPath: array [0..MAX_PATH - 1] of TFarCHar;
+  FInterruptTitle, FInterruptText: PFarChar;
 begin
   Result := 0;
   if (ItemsNumber > 0) and
@@ -508,10 +511,21 @@ begin
       if edserr = EDS_ERR_OK then
       begin
         if not silent then
-          ProgressBar := TProgressBar.Create(title, 100,
-            FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_GETCONFIRMATIONS, nil) and
-              FCS_INTERRUPTOPERATION <> 0,
-            GetMsg(MInterruptedTitle), GetMsg(MInterruptedText), 4)
+        begin
+          if FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_GETCONFIRMATIONS, nil) and
+            FCS_INTERRUPTOPERATION <> 0 then
+          begin
+            FInterruptTitle := GetMsg(MInterruptTitle);
+            FInterruptText := GetMsg(MInterruptText);
+          end
+          else
+          begin
+            FInterruptTitle := nil;
+            FInterruptText := nil;
+          end;
+          ProgressBar := TProgressBar.Create(title, 100, True,
+            FInterruptTitle, FInterruptText, True, 4)
+        end
         else
           ProgressBar := nil;
         try
@@ -1056,6 +1070,7 @@ var
   ProgressBar: TProgressBar;
   i: Integer;
   PanelUserData: PPanelUserData;
+  FInterruptTitle, FInterruptText: PFarChar;
 begin
   Result := False;
   stream := nil;
@@ -1064,16 +1079,28 @@ begin
     ParentData := aParentData;
     edserr := EdsGetChildCount(ParentData^.BaseRef, count);
     if edserr = EDS_ERR_OK then
+    begin
       if count > 0 then
       begin
         ItemsNumber := count;
         GetMem(PanelItem, ItemsNumber * SizeOf(TPluginPanelItem));
         ZeroMemory(PanelItem, ItemsNumber * SizeOf(TPluginPanelItem));
         if getDateTime and (count > 10) then
-          ProgressBar := TProgressBar.Create(GetMsg(MReading), count - 1,
-            FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_GETCONFIRMATIONS, nil) and
-              FCS_INTERRUPTOPERATION <> 0,
-            GetMsg(MInterruptedTitle), GetMsg(MInterruptedText))
+        begin
+          if FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_GETCONFIRMATIONS, nil) and
+            FCS_INTERRUPTOPERATION <> 0 then
+          begin
+            FInterruptTitle := GetMsg(MInterruptTitle);
+            FInterruptText := GetMsg(MInterruptText);
+          end
+          else
+          begin
+            FInterruptTitle := nil;
+            FInterruptText := nil;
+          end;
+          ProgressBar := TProgressBar.Create(GetMsg(MReading), count, True,
+            FInterruptTitle, FInterruptText)
+        end
         else
           ProgressBar := nil;
         try
@@ -1141,7 +1168,7 @@ begin
                   Result := True;
                 end;
             end;
-            if Assigned(ProgressBar) and not ProgressBar.UpdateProgress(i) then
+            if Assigned(ProgressBar) and not ProgressBar.UpdateProgress(i + 1) then
               Break;
           end;
         finally
@@ -1153,6 +1180,9 @@ begin
       end
       else
         Result := True;
+    end
+    else
+      ShowEdSdkError(edserr);
   end;
 end;
 
@@ -1196,26 +1226,6 @@ begin
                 PanelUserData^.BaseRefType := brtVolume;
                 UserData := Cardinal(PanelUserData);
                 Result := True;
-
-              end;
-              with FVolumeInfo do
-              begin
-                VolumeName := TPluginPanelItemArray(PanelItem)[i].FindData.cFileName;
-                case volumeInfo.storageType of
-                  0: StorageType := GetMsgStr(MNoCard);
-                  1: StorageType := GetMsgStr(M_CF);
-                  2: StorageType := GetMsgStr(M_SD);
-                  else StorageType := '';
-                end;
-                case volumeInfo.access of
-                  0: Access := GetMsgStr(MReadOnly);
-                  1: Access := GetMsgStr(MWriteOnly);
-                  2: Access := GetMsgStr(MReadWrite);
-                  $FFFFFFFF: Access := GetMsgStr(MAccessError);
-                  else Access := '';
-                end;
-                MaxCapacity := FormatFileSize(volumeInfo.maxCapacity);
-                FreeSpace := FormatFileSize(volumeInfo.freeSpaceInBytes);
               end;
             end;
           end;
@@ -1271,6 +1281,15 @@ end;
 type
   TFormatFunction = function(const Value): TFarString;
 
+function FormatBodyId(const Value): TFarString;
+begin
+{$IFDEF UNICODE}
+  Result := Format('%u', [Str2Int(CharToWideChar(PAnsiChar(@Value)))]);
+{$ELSE}
+  Result := Format('%u', [Str2Int(PAnsiChar(@Value))]);
+{$ENDIF}
+end;
+
 function FormatBatteryLevel(const Value): TFarString;
 begin
   if EdsUInt32(Value) = $ffffffff then
@@ -1291,13 +1310,14 @@ begin
   end;
 end;
 
-function TCanon.SetDirectory(Dir: PFarChar; OpMode: Integer): Integer;
+function TCanon.SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
   function ChDirDown(NewDir: PFarChar; var NewFindDataItem: Integer;
     var NewDirectory: TFarString): Boolean;
   var
     i, CurFindDataItem: Integer;
     UserData: PPanelUserData;
     edserr: EdsError;
+    volumeInfo: EdsVolumeInfo;
   function GetProperty(camera: EdsCameraRef; PropertyId: EdsPropertyID;
     ff: TFormatFunction = nil): TFarString;
   const
@@ -1308,11 +1328,13 @@ function TCanon.SetDirectory(Dir: PFarChar; OpMode: Integer): Integer;
     datetime: EdsTime;
     p: Pointer;
     datatype, size: EdsUInt32;
+    edserr: EdsError;
   begin
     Result := '';
-    if (EdsGetPropertySize(camera, PropertyId, 0, datatype, size) = EDS_ERR_OK) then
+    edserr := EdsGetPropertySize(camera, PropertyId, 0, datatype, size);
+    if edserr = EDS_ERR_OK then
     begin
-        if EdsEnumDataType(datatype) = kEdsDataType_String then
+      if EdsEnumDataType(datatype) = kEdsDataType_String then
       begin
         p := @str;
         if EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)) = EDS_ERR_OK then
@@ -1333,10 +1355,10 @@ function TCanon.SetDirectory(Dir: PFarChar; OpMode: Integer): Integer;
             Result := ff(datetime)
           else
             Result := Format(cDateTimeFmt, [
-              datetime.year, datetime.month, datetime.day,
+              datetime.day, datetime.month, datetime.year,
               datetime.hour, datetime.minute, datetime.second]);
       end
-      else if EdsEnumDataType(datatype) in [kEdsDataType_UInt32, kEdsDataType_Int32] then
+      else if EdsEnumDataType(datatype) in [kEdsDataType_Int32] then
       begin
         p := @data;
         if EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)) = EDS_ERR_OK then
@@ -1344,8 +1366,19 @@ function TCanon.SetDirectory(Dir: PFarChar; OpMode: Integer): Integer;
             Result := ff(data)
           else
             Result := Format('%d', [data]);
+      end
+      else if EdsEnumDataType(datatype) in [kEdsDataType_UInt32] then
+      begin
+        p := @data;
+        if EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)) = EDS_ERR_OK then
+          if Assigned(ff) then
+            Result := ff(data)
+          else
+            Result := Format('%u', [data]);
       end;
-    end;
+    end
+    else
+      Result := GetMsgStr(MPropertyUnavailable);
   end;
   begin
     Result := False;
@@ -1364,6 +1397,7 @@ function TCanon.SetDirectory(Dir: PFarChar; OpMode: Integer): Integer;
       end;
     if Assigned(UserData) then
     begin
+      edserr := EDS_ERR_OK;
       for i := NewFindDataItem + 1 to Length(FFindDataItem) - 1 do
         if UserData^.BaseRef = FFindDataItem[i].ParentData^.BaseRef then
         begin
@@ -1382,22 +1416,33 @@ function TCanon.SetDirectory(Dir: PFarChar; OpMode: Integer): Integer;
             if FCurrentSession <> UserData^.BaseRef then
             begin
               if Assigned(FCurrentSession) then
-                EdsCloseSession(FCurrentSession);
-              edserr := EdsOpenSession(UserData^.BaseRef);
-              if edserr = EDS_ERR_OK then
               begin
-                FCurrentSession := UserData^.BaseRef;
-                with FCameraInfo do
+                EdsCloseSession(FCurrentSession);
+                Session := nil;
+              end;
+              {if Assigned(Session) then
+                ShowMessage(GetMsg(MError), GetMsg(MOneSessionAllowed),
+                  FMSG_WARNING + FMSG_MB_OK)
+              else}
+              begin
+                edserr := EdsOpenSession(UserData^.BaseRef);
+                if edserr = EDS_ERR_OK then
                 begin
-                  CameraName := NewDir;
-                  BodyID := GetProperty(UserData^.BaseRef, kEdsPropID_BodyIdEx);
-                  FirmwareVersion := GetProperty(UserData^.BaseRef, kEdsPropID_FirmwareVersion);
-                  DateTime := GetProperty(UserData^.BaseRef, kEdsPropID_DateTime);
-                  BatteryLevel := GetProperty(UserData^.BaseRef,
-                    kEdsPropID_BatteryLevel, @FormatBatteryLevel);
-                  BatteryQuality := GetProperty(UserData^.BaseRef,
-                    kEdsPropID_BatteryQuality, @FormatBatteryQuality);
-                  // GetProperty(UserData^.BaseRef, kEdsPropID_ProductName);
+                  FCurrentSession := UserData^.BaseRef;
+                  Session := FCurrentSession;
+                  with FCameraInfo do
+                  begin
+                    CameraName := NewDir;
+                    BodyID := GetProperty(UserData^.BaseRef, kEdsPropID_BodyIdEx,
+                      FormatBodyId);
+                    FirmwareVersion := GetProperty(UserData^.BaseRef, kEdsPropID_FirmwareVersion);
+                    DateTime := GetProperty(UserData^.BaseRef, kEdsPropID_DateTime);
+                    BatteryLevel := GetProperty(UserData^.BaseRef,
+                      kEdsPropID_BatteryLevel, @FormatBatteryLevel);
+                    BatteryQuality := GetProperty(UserData^.BaseRef,
+                      kEdsPropID_BatteryQuality, @FormatBatteryQuality);
+                    // GetProperty(UserData^.BaseRef, kEdsPropID_ProductName);
+                  end;
                 end;
               end;
             end
@@ -1406,7 +1451,40 @@ function TCanon.SetDirectory(Dir: PFarChar; OpMode: Integer): Integer;
             if edserr = EDS_ERR_OK then
               Result := GetVolumeInfo(UserData, FFindDataItem[CurFindDataItem]);
           end;
-          brtVolume, brtDirItem:
+          brtVolume:
+          with FVolumeInfo do
+          begin
+            if EdsGetVolumeInfo(UserData^.BaseRef, volumeInfo) = EDS_ERR_OK then
+            begin
+              VolumeName := NewDir;
+              case volumeInfo.storageType of
+                0: StorageType := GetMsgStr(MNoCard);
+                1: StorageType := GetMsgStr(M_CF);
+                2: StorageType := GetMsgStr(M_SD);
+                else StorageType := '';
+              end;
+              case volumeInfo.access of
+                0: Access := GetMsgStr(MReadOnly);
+                1: Access := GetMsgStr(MWriteOnly);
+                2: Access := GetMsgStr(MReadWrite);
+                $FFFFFFFF: Access := GetMsgStr(MAccessError);
+                else Access := '';
+              end;
+              MaxCapacity := FormatFileSize(volumeInfo.maxCapacity);
+              FreeSpace := FormatFileSize(volumeInfo.freeSpaceInBytes);
+            end
+            else
+            begin
+              VolumeName := '';
+              StorageType := '';
+              Access := '';
+              MaxCapacity := '';
+              FreeSpace := '';
+            end;
+            Result := GetDirectoryInfo(UserData, FFindDataItem[CurFindDataItem],
+              True);
+          end;
+          brtDirItem:
             Result := GetDirectoryInfo(UserData, FFindDataItem[CurFindDataItem],
               True);
         end;
@@ -1423,7 +1501,9 @@ function TCanon.SetDirectory(Dir: PFarChar; OpMode: Integer): Integer;
         if NewDirectory <> '' then
           NewDirectory := NewDirectory + cDelim;
         NewDirectory := NewDirectory + NewDir;
-      end;
+      end
+      else
+        ShowEdSdkError(edserr);
     end;
   end;
   function ChDirUp(var NewFindDataItem: Integer;

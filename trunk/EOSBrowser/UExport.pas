@@ -112,6 +112,9 @@ function OpenPlugin(OpenFrom: Integer; Item: Integer): THandle; stdcall;
 {$ENDIF}
 var
   Canon: TCanon;
+  Dir: PFarChar;
+  PanelItem: PPluginPanelItem;
+  ItemsNumber: Integer;
 begin
 {$IFDEF OUT_LOG}
   WriteLn(LogFile, 'OpenPlugin');
@@ -120,6 +123,16 @@ begin
   try
     Canon := TCanon.Create(ConfigData.LibraryPath + 'EDSDK.dll');
     Result := THandle(Canon);
+    if OpenFrom = OPEN_COMMANDLINE then
+    begin
+      Dir := PFarChar(Item + SizeOf(TFarChar) * (Length(ConfigData.Prefix) + 1));
+      if (Canon.GetFindData(PanelItem, ItemsNumber, 0) = 0) or
+        (Canon.SetDirectory(Dir, 0) = 0) then
+      begin
+        Canon.Free;
+        Result := INVALID_HANDLE_VALUE;
+      end;
+    end;
   except
     on E: Exception do
       ShowMessage(GetMsg(MError),

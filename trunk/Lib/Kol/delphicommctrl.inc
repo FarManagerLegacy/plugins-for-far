@@ -1,7 +1,33 @@
 {*******************************************************************************
-  delpjicommctrl.inc
+  delpicommctrl.inc
   -- included in KOL.pas --
 *******************************************************************************}
+
+{$IFNDEF FPC}
+{$IFNDEF TMSG_WINDOWS}
+         {.$DEFINE TMSG_DECODED}
+{$ENDIF}
+{$ENDIF}
+{$IFDEF TMSG_DECODED}
+{$I MsgDecode.pas}
+type
+    TMsg = packed record
+    CASE Integer OF
+    0:  (
+        hwnd: HWND;
+        message: UINT;
+        wParam: WPARAM;
+        lParam: LPARAM;
+        time: DWORD;
+        pt: TPoint;
+        );
+    //1:  ( Bmsg: Windows.TMsg; );
+    2:  ( Cmsg: TMsgDecoded; );
+    end;
+
+    tagMSG = TMsg;
+{$ENDIF TMSG_DECODED}
+
 
 ////////////////////////////////////////////////////////////////////////////
 // this part of unit contains definitions moved here from CommCtrl.pas
@@ -1196,6 +1222,7 @@ const
   TBIF_LPARAM             = $00000010;
   TBIF_COMMAND            = $00000020;
   TBIF_SIZE               = $00000040;
+	TBIF_BYINDEX            = $80000000;
 
   TTN_FIRST                = 0-520;       { tooltips }
   TTN_LAST                 = 0-549;
@@ -1508,5 +1535,60 @@ type
   TNMDateTimeStringA = tagNMDATETIMESTRINGA;
   TNMDateTimeStringW = tagNMDATETIMESTRINGW;
   TNMDateTimeString = {$IFDEF UNICODE_CTRLS} TNMDateTimeStringW {$ELSE} TNMDateTimeStringA {$ENDIF};
+
+const
+  HDN_FIRST                = 0-300;       { header }
+  HDN_LAST                 = 0-399;
+  HDM_HITTEST             = HDM_FIRST + 6;
+  HDM_GETITEMRECT         = HDM_FIRST + 7;
+  HDM_SETIMAGELIST        = HDM_FIRST + 8;
+  HDM_GETIMAGELIST        = HDM_FIRST + 9;
+  HDM_ORDERTOINDEX        = HDM_FIRST + 15;
+  HDM_CREATEDRAGIMAGE     = HDM_FIRST + 16;  // wparam = which item = by index;
+  HDM_GETORDERARRAY       = HDM_FIRST + 17;
+  HDM_SETORDERARRAY       = HDM_FIRST + 18;
+  HDM_SETHOTDIVIDER       = HDM_FIRST + 19;
+  HDM_SETUNICODEFORMAT    = CCM_SETUNICODEFORMAT;
+  HDM_GETUNICODEFORMAT    = CCM_GETUNICODEFORMAT;
+  HDN_ITEMCHANGINGA        = HDN_FIRST-0;
+  HDN_ITEMCHANGEDA         = HDN_FIRST-1;
+  HDN_ITEMCLICKA           = HDN_FIRST-2;
+  HDN_ITEMDBLCLICKA        = HDN_FIRST-3;
+  HDN_DIVIDERDBLCLICKA     = HDN_FIRST-5;
+  HDN_BEGINTRACKA          = HDN_FIRST-6;
+  HDN_ENDTRACKA            = HDN_FIRST-7;
+  HDN_TRACKA               = HDN_FIRST-8;
+  HDN_GETDISPINFOA         = HDN_FIRST-9;
+  HDN_BEGINDRAG            = HDN_FIRST-10;
+  HDN_ENDDRAG              = HDN_FIRST-11;
+
+  HDN_ITEMCHANGINGW        = HDN_FIRST-20;
+  HDN_ITEMCHANGEDW         = HDN_FIRST-21;
+  HDN_ITEMCLICKW           = HDN_FIRST-22;
+  HDN_ITEMDBLCLICKW        = HDN_FIRST-23;
+  HDN_DIVIDERDBLCLICKW     = HDN_FIRST-25;
+  HDN_BEGINTRACKW          = HDN_FIRST-26;
+  HDN_ENDTRACKW            = HDN_FIRST-27;
+  HDN_TRACKW               = HDN_FIRST-28;
+  HDN_GETDISPINFOW         = HDN_FIRST-29;
+
+type
+  tagNMHEADERA = packed record
+    Hdr: TNMHdr;
+    Item: Integer;
+    Button: Integer;
+    PItem: PHDItemA;
+  end;
+  tagNMHEADERW = packed record
+    Hdr: TNMHdr;
+    Item: Integer;
+    Button: Integer;
+    PItem: PHDItemW;
+  end;
+  tagNMHEADER = tagNMHEADERA;
+  PHDNotifyA = ^THDNotifyA;
+  PHDNotifyW = ^THDNotifyW;
+  THDNotifyA = tagNMHEADERA;
+  THDNotifyW = tagNMHEADERW;
 
 {******************************************************************************}
