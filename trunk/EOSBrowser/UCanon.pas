@@ -22,6 +22,7 @@ uses
 {$ENDIF}
   EDSDKError,
   EDSDKType,
+  UEdSdkError,
   UTypes,
   UUtils,
   UProgressBar,
@@ -79,8 +80,10 @@ type
     FVolumeInfo: TVolumeInfo;
 
   private
-    function _AddRef: Integer;
-    function _Release: Integer;
+    class procedure LoadLib(const FileName: TFarString);
+    class procedure FreeLib;
+    class function OpenSession(session: EdsBaseRef): Boolean;
+    class procedure CloseSession;
 
     procedure SetFindDataName(var FindData: TFarFindData; FileName: PAnsiChar);
 
@@ -183,30 +186,12 @@ end;
 type
   TPluginPanelItemArray = array of TPluginPanelItem;
 
-var
-  _RefCount: Integer;
-  IsConnect: Boolean;
-  Session: EdsBaseRef;
-
 constructor TCanon.Create(const FileName: TFarString);
 var
   i: Integer;
-  edserr: EdsError;
 begin
   inherited Create;
-  if not IsConnect then
-  begin
-{$IFDEF USE_DYNLOAD}
-    if not InitEDSDK(PFarChar(FileName)) then
-      raise Exception.Create(err.e_Abort, GetMsg(MLibNotFound));
-{$ENDIF}
-    edserr := EdsInitializeSDK;
-    if edserr <> EDS_ERR_OK then
-      raise Exception.Create(err.e_Abort, '')
-    else
-      IsConnect := True;
-  end;
-  _AddRef;
+  LoadLib(FileName);
   for i := 0 to 9 do
   with FPanelModesArray[i] do
   begin
@@ -300,14 +285,7 @@ begin
       FreeFindDataItem(FFindDataItem[i]);
     SetLength(FFindDataItem, 0);
   end;
-  if (_Release = 0) and IsConnect then
-  begin
-    EdsTerminateSDK;
-{$IFDEF USE_DYNLOAD}
-    FreeEDSDK;
-{$ENDIF}
-    IsConnect := False;
-  end;
+  FreeLib;
   inherited;
 end;
 
@@ -325,9 +303,8 @@ begin
         BaseRef := PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData)^.BaseRef;
         if BaseRef = FCurrentSession then
         begin
-          EdsCloseSession(BaseRef);
+          CloseSession;
           FCurrentSession := nil;
-          Session := nil;
         end;
         EdsRelease(BaseRef);
 {$IFDEF UNICODE}
@@ -339,6 +316,9 @@ begin
       FreeMem(PanelItem);
     end;
     Free;
+{$IFDEF OUT_LOG}
+    WriteLn(LogFile, 'FreeFindDataItem');
+{$ENDIF}
   end;
 end;
 
@@ -468,6 +448,7 @@ begin
     if UserData^.BaseRefType = brtDirItem then
     begin
       silent := OpMode and OPM_SILENT <> 0;
+      title := nil;
       if not silent then
       begin
         if Move = 0 then
@@ -981,19 +962,6 @@ begin
   until not retry;
 end;
 
-function TCanon._AddRef: Integer;
-begin
-  Inc(_RefCount);
-  Result := _RefCount;
-end;
-
-function TCanon._Release: Integer;
-begin
-  if _RefCount > 0 then
-    Dec(_RefCount);
-  Result := _RefCount;
-end;
-
 function TCanon.GetCameraInfo(var FindDataItem: TFindDataItem): Boolean;
 var
   cameraList: EdsCameraListRef;
@@ -1413,42 +1381,33 @@ function TCanon.SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
         case UserData^.BaseRefType of
           brtCamera:
           begin
+            Result := True;
             if FCurrentSession <> UserData^.BaseRef then
             begin
               if Assigned(FCurrentSession) then
+                CloseSession;
+              Result := OpenSession(UserData^.BaseRef);
+              if Result then
               begin
-                EdsCloseSession(FCurrentSession);
-                Session := nil;
-              end;
-              {if Assigned(Session) then
-                ShowMessage(GetMsg(MError), GetMsg(MOneSessionAllowed),
-                  FMSG_WARNING + FMSG_MB_OK)
-              else}
-              begin
-                edserr := EdsOpenSession(UserData^.BaseRef);
-                if edserr = EDS_ERR_OK then
+                FCurrentSession := UserData^.BaseRef;
+                with FCameraInfo do
                 begin
-                  FCurrentSession := UserData^.BaseRef;
-                  Session := FCurrentSession;
-                  with FCameraInfo do
-                  begin
-                    CameraName := NewDir;
-                    BodyID := GetProperty(UserData^.BaseRef, kEdsPropID_BodyIdEx,
-                      FormatBodyId);
-                    FirmwareVersion := GetProperty(UserData^.BaseRef, kEdsPropID_FirmwareVersion);
-                    DateTime := GetProperty(UserData^.BaseRef, kEdsPropID_DateTime);
-                    BatteryLevel := GetProperty(UserData^.BaseRef,
-                      kEdsPropID_BatteryLevel, @FormatBatteryLevel);
-                    BatteryQuality := GetProperty(UserData^.BaseRef,
-                      kEdsPropID_BatteryQuality, @FormatBatteryQuality);
-                    // GetProperty(UserData^.BaseRef, kEdsPropID_ProductName);
-                  end;
+                  CameraName := NewDir;
+                  BodyID := GetProperty(UserData^.BaseRef, kEdsPropID_BodyIdEx,
+                    FormatBodyId);
+                  FirmwareVersion := GetProperty(UserData^.BaseRef, kEdsPropID_FirmwareVersion);
+                  DateTime := GetProperty(UserData^.BaseRef, kEdsPropID_DateTime);
+                  BatteryLevel := GetProperty(UserData^.BaseRef,
+                    kEdsPropID_BatteryLevel, @FormatBatteryLevel);
+                  BatteryQuality := GetProperty(UserData^.BaseRef,
+                    kEdsPropID_BatteryQuality, @FormatBatteryQuality);
+                  // GetProperty(UserData^.BaseRef, kEdsPropID_ProductName);
                 end;
               end;
             end
             else
               edserr := EDS_ERR_OK;
-            if edserr = EDS_ERR_OK then
+            if Result and (edserr = EDS_ERR_OK) then
               Result := GetVolumeInfo(UserData, FFindDataItem[CurFindDataItem]);
           end;
           brtVolume:
@@ -1533,7 +1492,17 @@ function TCanon.SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
           if (j > 0) and (j < Length(NewDirectory)) then
             NewDirectory := Copy(NewDirectory, 1, j - 1)
           else
+          begin
             NewDirectory := '';
+            for j := Length(FFindDataItem) - 1 to 1 do
+              FreeFindDataItem(FFindDataItem[j]);
+            SetLength(FFindDataItem, 1);
+            if Assigned(FCurrentSession) then
+            begin
+              CloseSession;
+              FCurrentSession := nil;
+            end;
+          end;
           Break;
         end;
       end;
@@ -1624,7 +1593,7 @@ begin
     FARAPI.Control(INVALID_HANDLE_VALUE, FCTL_GETANOTHERPANELINFO, @PanelInfo);
     if PanelInfo.PanelType = PTYPE_INFOPANEL then
       FARAPI.Control(INVALID_HANDLE_VALUE, FCTL_UPDATEANOTHERPANEL, nil);
-{$ENDIF}    
+{$ENDIF}
   end
   else if OpMode and (OPM_FIND or OPM_SILENT) = 0 then
     ShowMessage(GetMsg(MError), GetMsg(MPathNotFound), FMSG_WARNING + FMSG_MB_OK);
@@ -1642,9 +1611,90 @@ begin
   FInfoLineCount := Value;
 end;
 
+var
+  _RefCount, _SessionRefCount: Integer;
+  IsConnect: Boolean;
+  CurrentSession: EdsBaseRef;
+
+class procedure TCanon.LoadLib(const FileName: TFarString);
+var
+  edserr: EdsError;
+begin
+  if not IsConnect then
+  begin
+{$IFDEF USE_DYNLOAD}
+    if not InitEDSDK(PFarChar(FileName)) then
+      raise Exception.Create(err.e_Abort, GetMsg(MLibNotFound));
+{$ENDIF}
+    edserr := EdsInitializeSDK;
+    if edserr <> EDS_ERR_OK then
+      raise Exception.Create(err.e_Abort, GetEdSdkError(edserr))
+    else
+      IsConnect := True;
+  end;
+  Inc(_RefCount);
+end;
+
+class procedure TCanon.FreeLib;
+begin
+  if _RefCount > 0 then
+    Dec(_RefCount);
+  if (_RefCount = 0) and IsConnect then
+  begin
+    EdsTerminateSDK;
+{$IFDEF USE_DYNLOAD}
+    FreeEDSDK;
+{$ENDIF}
+    IsConnect := False;
+  end;
+end;
+
+class procedure TCanon.CloseSession;
+begin
+  if Assigned(CurrentSession) then
+  begin
+    if _SessionRefCount > 0 then
+      Dec(_SessionRefCount);
+    if _SessionRefCount = 0 then
+    begin
+      EdsCloseSession(CurrentSession);
+      CurrentSession := nil;
+    end;
+  end;
+end;
+
+class function TCanon.OpenSession(session: EdsBaseRef): Boolean;
+var
+  edserr: EdsError;
+begin
+  if Assigned(CurrentSession) then
+  begin
+    Result := (CurrentSession = session);
+    if Result then
+      Inc(_SessionRefCount)
+    else
+      ShowMessage(GetMsg(MError), GetMsg(MOneSessionAllowed),
+        FMSG_WARNING + FMSG_MB_OK);
+  end
+  else
+  begin
+    edserr := EdsOpenSession(session);
+    Result := edserr = EDS_ERR_OK;
+    if Result then
+    begin
+      CurrentSession := session;
+      Inc(_SessionRefCount);
+    end
+    else
+      ShowEdSdkError(edserr);
+  end;
+end;
+
 initialization
 
   _RefCount := 0;
   IsConnect := False;
+  _SessionRefCount := 0;
+  CurrentSession := nil;
 
 end.

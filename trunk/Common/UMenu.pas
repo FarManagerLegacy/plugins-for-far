@@ -410,13 +410,13 @@ procedure TFarMenu.InitItemsEx(AItemsEx: array of TFarString; UsePtr: Boolean);
 {$ENDIF}
 var
   i: Integer;
-  Item: PFarMenuItemEx;
+  //Item: PFarMenuItemEx;
 begin
   if Assigned(FItemsEx) then
     FreeMem(FItemsEx);
   FItemsNumber := Length(AItemsEx);
   GetMem(FItemsEx, FItemsNumber * SizeOf(TFarMenuItemEx));
-  Item := @FItemsEx[0];
+  //Item := @FItemsEx[0];
   for i := 0 to FItemsNumber - 1 do
   begin
 {$IFDEF UNICODE}

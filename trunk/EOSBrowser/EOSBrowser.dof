@@ -135,10 +135,11 @@ ProductName=
 ProductVersion=1.0.0.0
 Comments=
 [HistoryLists\hlConditionals]
-Count=3
+Count=4
 Item0=UNICODE;UNICODE_CTRLS;NOT_USE_RICHEDIT
-Item1=UNICODE
-Item2=NOT_USE_RICHEDIT
+Item1=OUT_LOG;UNICODE;UNICODE_CTRLS;NOT_USE_RICHEDIT
+Item2=UNICODE
+Item3=NOT_USE_RICHEDIT
 [HistoryLists\hlUnitAliases]
 Count=1
 Item0=WinTypes=Windows;WinProcs=Windows;DbiTypes=BDE;DbiProcs=BDE;DbiErrs=BDE;

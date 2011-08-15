@@ -533,7 +533,7 @@ unit KOL;
   {$UNDEF ASM_VERSION}
   {$UNDEF ASM_UNICODE}
   {$IFDEF _D2009orHigher}
-      {$DEFINE UNICODE_CTRLS}
+      {.$DEFINE UNICODE_CTRLS}
   {$ENDIF}
 {$ENDIF}
 {$IFDEF _D7orHigher}
@@ -14291,7 +14291,7 @@ var OnMonitorMessage: procedure( var M: TMsg; Enter_WndFunc: Boolean ) of object
 
 
 {$IFDEF _D2006orHigher}
-	{$I MCKfakeClasses200x.inc} // Dufa
+	{.$I MCKfakeClasses200x.inc} // Dufa
 {$ENDIF}
 implementation
 

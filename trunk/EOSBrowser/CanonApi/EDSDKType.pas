@@ -37,7 +37,7 @@ type
   { --------------- BASIC TYPE ------------ }
   EdsBool   = Integer;
 
-  EdsChar   = Char;
+  EdsChar   = AnsiChar;
   EdsInt8   = Shortint;
   EdsUInt8  = Byte;
   EdsInt16  = Smallint;

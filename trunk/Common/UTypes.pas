@@ -19,7 +19,7 @@ type
 {$IFDEF UNICODE}
   TFarString = WideString;
 {$ELSE}
-  TFarChar = Char;
+  TFarChar = AnsiChar;
   PFarChar = PAnsiChar;
 
   TFarString = AnsiString;
