@@ -22,15 +22,6 @@ implementation
 
 uses UDialogs;
 
-{.$DEFINE OUT_LOG}
-{$IFDEF RELEASE}
-  {$UNDEF OUT_LOG}
-{$ENDIF}
-{$IFDEF OUT_LOG}
-var
-  LogFile: TextFile;
-{$ENDIF}
-
 (*
   Функция SetStartupInfo вызывается один раз, перед всеми другими функциями.
   Она передает плагину информацию, необходимую для дальнейшей работы.
@@ -368,16 +359,6 @@ exports
   MakeDirectory,
   PutFiles
   }
-{$ENDIF}
-
-{$IFDEF OUT_LOG}
-initialization
-
-  AssignFile(LogFile, 'EOSBrowser.LOG');
-  Rewrite(LogFile);
-
-finalization
-  Close(LogFile);
 {$ENDIF}
 
 end.

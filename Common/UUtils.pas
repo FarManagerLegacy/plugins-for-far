@@ -75,7 +75,7 @@ function CharToOemStr(const str: TFarString): TFarString;
 {$ENDIF}
 
 {$IFDEF UNICODE}
-function CharToWideChar(const str: PChar; CodePage: UINT = CP_ACP): WideString;
+function CharToWideChar(const str: PAnsiChar; CodePage: UINT = CP_ACP): WideString;
 {$ENDIF}
 
 function GetOk(Number: Integer): Integer;
@@ -101,10 +101,19 @@ function RegEnumValueW(hKey: HKEY; dwIndex: DWORD; lpValueName: PWideChar;
 
 function PosEx(const SubStr, S: TFarString; Offset: Cardinal = 1): Integer;
 
+{.$DEFINE OUT_LOG}
+{$IFDEF RELEASE}
+  {$UNDEF OUT_LOG}
+{$ENDIF}
+{$IFDEF OUT_LOG}
+var
+  LogFile: TextFile;
+{$ENDIF}
+
 implementation
 
 {$IFDEF UNICODE}
-function CharToWideChar(const str: PChar; CodePage: UINT): WideString;
+function CharToWideChar(const str: PAnsiChar; CodePage: UINT): WideString;
 var
   bufsize: Integer;
 begin
@@ -903,6 +912,16 @@ end;
 
 {$IFDEF UNICODE}
 function RegEnumValueW; external advapi32 name 'RegEnumValueW';
+{$ENDIF}
+
+{$IFDEF OUT_LOG}
+initialization
+
+  AssignFile(LogFile, 'EOSBrowser.LOG');
+  Rewrite(LogFile);
+
+finalization
+  Close(LogFile);
 {$ENDIF}
 
 end.

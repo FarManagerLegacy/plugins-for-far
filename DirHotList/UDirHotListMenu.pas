@@ -147,7 +147,7 @@ begin
     begin
       TitleId := MEditShortcut;
       ItemName := ReadRegStringValue(MenuOrder.StringArray[Index], SubKey, '');
-      p := Pos(cDivChar, ItemName);
+      p := Pos(TFarString(cDivChar), TFarString(ItemName));
       if p > 0 then
       begin
         ItemData := Copy(ItemName, 1, p - 1);
@@ -267,7 +267,7 @@ begin
   begin
     if IsGroupItem(FromIndex) then
     begin
-      if Pos(SubKey + cDelim + MenuOrder.StringArray[FromIndex], ToSubKey) = 0 then
+      if Pos(TFarString(SubKey + cDelim + MenuOrder.StringArray[FromIndex]), TFarString(ToSubKey)) = 0 then
         Result := MoveRegKey(SubKey + cDelim + MenuOrder.StringArray[FromIndex],
           ToSubKey, False)
       else
