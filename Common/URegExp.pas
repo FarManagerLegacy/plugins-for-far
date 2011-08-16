@@ -11,7 +11,8 @@ uses
 {$ELSE}
   RegExpr,
 {$ENDIF}
-  UTypes;
+  UTypes,
+  UUtils;
 
 type
   TRegExp = class
@@ -23,22 +24,22 @@ type
     FMatches: array of TRegExpMatch;
     FMatchesStr: array of TFarString;
     function QuoteRegExp(const AText: TFarString): TFarString;
-    function GetMatches(Index: Integer): TFarString;
 {$ELSE}
     FRegExpr: TRegExpr;
+    function UnquoteRegExp(const AText: TFarString): TFarString;
 {$ENDIF}
+    function GetMatchCount: Integer;
+    function GetMatches(Index: Integer): TFarString;
   public
     constructor Create;
     destructor Destroy; override;
     function Compile(const ARegExp: TFarString): Boolean;
     function Match(const AText: TFarString): Boolean;
     property Matches[Index: Integer]: TFarString read GetMatches;
-    property Brackets: Integer read FBrackets;
+    property MatchCount: Integer read GetMatchCount;
   end;
 
 implementation
-
-uses SysUtils;
 
 { TRegExp }
 
@@ -46,11 +47,12 @@ function TRegExp.Compile(const ARegExp: TFarString): Boolean;
 begin
 {$IFDEF UNICODE}
   FRegExp := QuoteRegExp(ARegExp);
-  Result := (FARAPI.RegExpControl(FHandle, RECTL_COMPILE, PFarChar(FRegExp)) <> 0) and
-    (FARAPI.RegExpControl(FHandle, RECTL_OPTIMIZE, nil) <> 0);
+  Result := FARAPI.RegExpControl(FHandle, RECTL_COMPILE, PFarChar(FRegExp)) <> 0;
+  if Result then
+    FARAPI.RegExpControl(FHandle, RECTL_OPTIMIZE, nil);
 {$ELSE}
   try
-    FRegExpr.Expression := ARegExp;
+    FRegExpr.Expression := UnquoteRegExp(ARegExp);
     Result := True;
   except
     on E: ERegExpr do
@@ -80,11 +82,21 @@ begin
   inherited;
 end;
 
+function TRegExp.GetMatchCount: Integer;
+begin
+{$IFDEF UNICODE}
+  Result := FBrackets;
+{$ELSE}
+  Result := FRegExpr.SubExprMatchCount + 1;
+{$ENDIF}
+end;
+
 function TRegExp.GetMatches(Index: Integer): TFarString;
 begin
 {$IFDEF UNICODE}
   Result := FMatchesStr[Index];
 {$ELSE}
+  Result := FRegExpr.Match[Index];
 {$ENDIF}
 end;
 
@@ -120,10 +132,11 @@ begin
     end;
   end;
 {$ELSE}
-  Result := FRegExpr.Exec(Text);
+  Result := FRegExpr.Exec(AText);
 {$ENDIF}
 end;
 
+{$IFDEF UNICODE}
 function TRegExp.QuoteRegExp(const AText: TFarString): TFarString;
 begin
   if (AText <> '') and (AText[1] <> '/') then
@@ -131,5 +144,29 @@ begin
   else
     Result := AText;
 end;
+{$ELSE}
+function TRegExp.UnquoteRegExp(const AText: TFarString): TFarString;
+var
+  p, p1: Integer;
+begin
+  if (AText <> '') and (AText[1] = '/') then
+  begin
+    p := PosEx('/', AText, 2);
+    if p <> 0 then
+    begin
+      repeat
+        p1 := p + 1;
+        p := PosEx('/', AText, p1);
+      until p = 0;
+      if p1 <= Length(AText) then
+        FRegExpr.ModifierStr := Copy(AText, p1, Length(AText) - p1 + 1);
+      Result := Copy(AText, 2, p1 - 3);
+      Exit;
+    end;
+  end;
+  Result := AText;
+end;
+{$ENDIF}
+
 
 end.
