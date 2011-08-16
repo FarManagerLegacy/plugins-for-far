@@ -28,14 +28,22 @@ uses
   ULang;
 
 type
-  TOverDlg = class(TSimpleFarDialog)
+  TOverDlg = class(TCustomSimpleFarDialog)
+{$IFDEF UNICODE}
+  protected
+    function InitFialogInfo(var AInfo: TDialogInfo): Integer; override;
+{$ENDIF}
   public
     constructor Create(const FileName: TFarString; const OverText: PFarChar;
       dirItem: EdsDirectoryItemRef; dirInfo: PEdsDirectoryItemInfo);
     function Execute: Integer; override;
   end;
 
-  TConfigDlg = class(TSimpleFarDialog)
+  TConfigDlg = class(TCustomSimpleFarDialog)
+{$IFDEF UNICODE}
+  protected
+    function InitFialogInfo(var AInfo: TDialogInfo): Integer; override;
+{$ENDIF}
   public
     constructor Create;
     function Execute: Integer; override;
@@ -172,6 +180,16 @@ begin
   end;
 end;
 
+{$IFDEF UNICODE}
+function TOverDlg.InitFialogInfo(var AInfo: TDialogInfo): Integer;
+const
+  cOverDlgGuid: TGUID = '{2B7BFF88-7576-476B-A9E3-B66C94712278}';
+begin
+  AInfo.Id := cOverDlgGuid;
+  Result := 1;
+end;
+{$ENDIF}
+
 { TConfigDlg }
 
 const
@@ -266,5 +284,15 @@ begin
   else
     Result := 0;
 end;
+
+{$IFDEF UNICODE}
+function TConfigDlg.InitFialogInfo(var AInfo: TDialogInfo): Integer;
+const
+  cConfigDlgGuid: TGUID = '{483D99E4-4B09-4C97-BA0E-DC362CBE5B9B}';
+begin
+  AInfo.Id := cConfigDlgGuid;
+  Result := 1;
+end;
+{$ENDIF}
 
 end.

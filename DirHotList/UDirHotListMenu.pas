@@ -87,6 +87,11 @@ const
 
   cShortcut: PFarChar = 'NewShortcut';
   cGroup: PFarChar = 'NewGroup';
+
+{$IFDEF UNICODE}
+  cGUIDGroup: TGUID = '{6196B533-4279-4AA4-8C14-5D635AFEE407}';
+  cGUIDShortcut: TGUID = '{40CF1A65-1725-4E29-9ED5-C486BFB1EBD8}';
+{$ENDIF}
 var
   TitleId: TLanguageID;
   MenuDlg: TSimpleFarDialog;
@@ -116,7 +121,7 @@ begin
         DlgItem(DI_BUTTON, 0, cSizeY_G - 3, 0, 0, DIF_CENTERGROUP, PFarChar(MOk),
           Pointer(True)),
         DlgItem(DI_BUTTON, 0, cSizeY_G - 3, 0, 0, DIF_CENTERGROUP, PFarChar(MCancel))
-      ], -1, -1, cSizeX, cSizeY_G, cGroup);
+      ], -1, -1, cSizeX, cSizeY_G, cGroup {$IFDEF UNICODE}, cGUIDGroup{$ENDIF});
     try
       Result := MenuDlg.Execute = 4;
       if Result then
@@ -169,7 +174,7 @@ begin
         DlgItem(DI_BUTTON, 0, cSizeY_S - 3, 0, 0, DIF_CENTERGROUP, PFarChar(MOk),
           Pointer(True)),
         DlgItem(DI_BUTTON, 0, cSizeY_S - 3, 0, 0, DIF_CENTERGROUP, PFarChar(MCancel))
-      ], -1, -1, cSizeX, cSizeY_S, cShortcut);
+      ], -1, -1, cSizeX, cSizeY_S, cShortcut {$IFDEF UNICODE}, cGUIDShortcut{$ENDIF});
     try
       Result := MenuDlg.Execute = 6;
       if Result then
