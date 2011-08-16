@@ -29,7 +29,10 @@ type
     FFlags: Cardinal;
     FDlg: THandle;
   protected
-    property DlgProc: TFarDlgProc read FDlgProc write FDlgProc;
+    function DlgProc(Msg, Param1: Integer; Param2: LONG_PTR): LONG_PTR; virtual;
+{$IFDEF UNICODE}
+    function InitFialogInfo(var AInfo: TDialogInfo): LONG_PTR; virtual; abstract;
+{$ENDIF}
     procedure InitItems(AItems: array of TFarDialogItem); overload;
     procedure InitItems(AItems: array of TFarDialogItem;
       AX1, AY1, AX2, AY2: Integer; AHelpTopic: PFarChar); overload;
@@ -48,19 +51,32 @@ type
     property ItemsNumber: Integer read FItemsNumber;
   end;
 
-  TSimpleFarDialog = class(TFarDialog)
+  TCustomSimpleFarDialog = class(TFarDialog)
   private
     FItemsTextData: array of TFarString;
     FItemsCheckData: array of Boolean;
-    function SimpleDialogProc(Msg, Param1: Integer; Param2: LONG_PTR): LONG_PTR;
     function GetItemTextData(Index: Integer): TFarString;
     function GetItemCheckData(Index: Integer): Boolean;
+  protected
+    function DlgProc(Msg, Param1: Integer; Param2: LONG_PTR): LONG_PTR; override;
   public
     constructor Create(AItems: array of TFarDialogItem;
       AX1, AY1, AX2, AY2: Integer; AHelpTopic: PFarChar);
     destructor Destroy; override;
     property ItemTextData[Index: Integer]: TFarString read GetItemTextData;
     property ItemCheckData[Index: Integer]: Boolean read GetItemCheckData;
+  end;
+
+  TSimpleFarDialog = class(TCustomSimpleFarDialog)
+{$IFDEF UNICODE}
+  private
+    FGUID: TGUID;
+  protected
+    function InitFialogInfo(var AInfo: TDialogInfo): LONG_PTR; override;
+{$ENDIF}
+  public
+    constructor Create(AItems: array of TFarDialogItem;
+      AX1, AY1, AX2, AY2: Integer; AHelpTopic: PFarChar {$IFDEF UNICODE}; const GUID: TGUID{$ENDIF});
   end;
 
 function DlgItem(AItemType: Integer; X, Y, W, H: Integer; AFlags: DWORD;
@@ -142,10 +158,8 @@ begin
   end
   else
     LONG_PTR(FarDialog) := FARAPI.SendDlgMessage(hDlg, DM_GETDLGDATA, 0, 0);
-  if Assigned(FarDialog.DlgProc) then
-    Result := FarDialog.DlgProc(Msg, Param1, Param2)
-  else
-    Result := FARAPI.DefDlgProc(FarDialog.FDlg, Msg, Param1, Param2);
+
+  Result := FarDialog.DlgProc(Msg, Param1, Param2);
 end;
 
 { TFarDialog }
@@ -157,6 +171,20 @@ begin
   FItems := nil;
   FItemsNumber := 0;
   FHelpTopic := nil;
+end;
+
+function TFarDialog.DlgProc(Msg, Param1: Integer; Param2: LONG_PTR): LONG_PTR;
+begin
+{$IFDEF UNICODE}
+  case Msg of
+    DN_GETDIALOGINFO:
+      Result := InitFialogInfo(PDialogInfo(Param2)^);
+    else
+      Result := FARAPI.DefDlgProc(FDlg, Msg, Param1, Param2);
+  end;
+{$ELSE}
+  Result := FARAPI.DefDlgProc(FDlg, Msg, Param1, Param2);
+{$ENDIF}
 end;
 
 destructor TFarDialog.Destroy;
@@ -228,6 +256,15 @@ begin
   end;
 end;
 
+(*function TFarDialog.InitFialogInfo(var AInfo: TDialogInfo): LONG_PTR;
+const
+
+  cGuid: TGUID = '{00000000-0000-0000-0000-000000000000}';
+begin
+  AInfo.Id := cGuid;
+  Result := 1;
+end;*)
+
 procedure TFarDialog.InitItems(AItems: array of TFarDialogItem; AX1, AY1,
   AX2, AY2: Integer; AHelpTopic: PFarChar);
 begin
@@ -266,36 +303,35 @@ begin
   SendMsg(DM_SETTEXT, ItemID, @ItemData);
 end;
 
-{ TSimpleFarDialog }
+{ TCustomSimpleFarDialog }
 
-constructor TSimpleFarDialog.Create(AItems: array of TFarDialogItem;
+constructor TCustomSimpleFarDialog.Create(AItems: array of TFarDialogItem;
   AX1, AY1, AX2, AY2: Integer; AHelpTopic: PFarChar);
 begin
   inherited Create;
-  DlgProc := SimpleDialogProc;
   InitItems(AItems, AX1, AY1, AX2, AY2, AHelpTopic);
   SetLength(FItemsTextData, ItemsNumber);
   SetLength(FItemsCheckData, ItemsNumber);
 end;
 
-destructor TSimpleFarDialog.Destroy;
+destructor TCustomSimpleFarDialog.Destroy;
 begin
   SetLength(FItemsTextData, 0);
   SetLength(FItemsCheckData, 0);
   inherited;
 end;
 
-function TSimpleFarDialog.GetItemCheckData(Index: Integer): Boolean;
+function TCustomSimpleFarDialog.GetItemCheckData(Index: Integer): Boolean;
 begin
   Result := FItemsCheckData[Index];
 end;
 
-function TSimpleFarDialog.GetItemTextData(Index: Integer): TFarString;
+function TCustomSimpleFarDialog.GetItemTextData(Index: Integer): TFarString;
 begin
   Result := FItemsTextData[Index];
 end;
 
-function TSimpleFarDialog.SimpleDialogProc(Msg, Param1: Integer;
+function TCustomSimpleFarDialog.DlgProc(Msg, Param1: Integer;
   Param2: LONG_PTR): LONG_PTR;
 var
   i: Integer;
@@ -336,7 +372,26 @@ begin
     end;
   if l > 0 then
     FreeMem(Item);
-  Result := FARAPI.DefDlgProc(FDlg, Msg, Param1, Param2)
+  Result := inherited DlgProc(Msg, Param1, Param2);
 end;
+
+{ TSimpleFarDialog }
+
+constructor TSimpleFarDialog.Create(AItems: array of TFarDialogItem; AX1,
+  AY1, AX2, AY2: Integer; AHelpTopic: PFarChar {$IFDEF UNICODE}; const GUID: TGUID{$ENDIF});
+begin
+  inherited Create(AItems, AX1, AY1, AX2, AY2, AHelpTopic);
+{$IFDEF UNICODE};
+  FGUID := GUID;
+{$ENDIF}
+end;
+
+{$IFDEF UNICODE}
+function TSimpleFarDialog.InitFialogInfo(var AInfo: TDialogInfo): LONG_PTR;
+begin
+  AInfo.Id := FGUID;
+  Result := 0;
+end;
+{$ENDIF}
 
 end.
