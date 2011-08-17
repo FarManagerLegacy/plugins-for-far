@@ -67,17 +67,19 @@ type
     property ItemCheckData[Index: Integer]: Boolean read GetItemCheckData;
   end;
 
-  TSimpleFarDialog = class(TCustomSimpleFarDialog)
 {$IFDEF UNICODE}
+  TSimpleFarDialog = class(TCustomSimpleFarDialog)
   private
     FGUID: TGUID;
   protected
     function InitFialogInfo(var AInfo: TDialogInfo): LONG_PTR; override;
-{$ENDIF}
   public
     constructor Create(AItems: array of TFarDialogItem;
-      AX1, AY1, AX2, AY2: Integer; AHelpTopic: PFarChar {$IFDEF UNICODE}; const GUID: TGUID{$ENDIF});
+      AX1, AY1, AX2, AY2: Integer; AHelpTopic: PFarChar; const GUID: TGUID);
   end;
+{$ELSE}
+  TSimpleFarDialog = TCustomSimpleFarDialog;
+{$ENDIF}
 
 function DlgItem(AItemType: Integer; X, Y, W, H: Integer; AFlags: DWORD;
   AData: PFarChar = nil; AParam: Pointer = nil): TFarDialogItem;
@@ -375,18 +377,16 @@ begin
   Result := inherited DlgProc(Msg, Param1, Param2);
 end;
 
+{$IFDEF UNICODE}
 { TSimpleFarDialog }
 
 constructor TSimpleFarDialog.Create(AItems: array of TFarDialogItem; AX1,
-  AY1, AX2, AY2: Integer; AHelpTopic: PFarChar {$IFDEF UNICODE}; const GUID: TGUID{$ENDIF});
+  AY1, AX2, AY2: Integer; AHelpTopic: PFarChar; const GUID: TGUID);
 begin
   inherited Create(AItems, AX1, AY1, AX2, AY2, AHelpTopic);
-{$IFDEF UNICODE};
   FGUID := GUID;
-{$ENDIF}
 end;
 
-{$IFDEF UNICODE}
 function TSimpleFarDialog.InitFialogInfo(var AInfo: TDialogInfo): LONG_PTR;
 begin
   AInfo.Id := FGUID;
