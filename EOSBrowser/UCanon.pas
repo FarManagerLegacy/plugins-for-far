@@ -281,7 +281,7 @@ begin
   end;
   if Length(FFindDataItem) > 0 then
   begin
-    for i := Length(FFindDataItem) - 1 to 0 do
+    for i := Length(FFindDataItem) - 1 downto 0 do
       FreeFindDataItem(FFindDataItem[i]);
     SetLength(FFindDataItem, 0);
   end;
@@ -505,7 +505,7 @@ begin
             FInterruptText := nil;
           end;
           ProgressBar := TProgressBar.Create(title, 100, True,
-            FInterruptTitle, FInterruptText, True, 4)
+            FInterruptTitle, FInterruptText, cSizeProgress, True, 4)
         end
         else
           ProgressBar := nil;
@@ -607,6 +607,7 @@ var
   skipall_delete: Boolean;
   ContextData: TContextData;
   FromName, ToName: TFarString;
+  FromNameL, ToNameL: TFarString;
   attr: Cardinal;
 begin
   Result := EDS_ERR_OK;
@@ -682,20 +683,20 @@ begin
                 Exit;
               end;
               4: // Cancel
+              begin
                 Result := EDS_ERR_OPERATION_CANCELLED;
+                Exit;
+              end;
             end;
           finally
             Free;
           end;
-        if Result <> EDS_ERR_OPERATION_CANCELLED then
-        begin
-          attr := attr and not FILE_ATTRIBUTE_READONLY;
+        attr := attr and not FILE_ATTRIBUTE_READONLY;
 {$IFDEF UNICODE}
-          SetFileAttributesW(PFarChar(ToName), attr);
+        SetFileAttributesW(PFarChar(ToName), attr);
 {$ELSE}
-          SetFileAttributesA(PFarChar(ToName), attr);
+        SetFileAttributesA(PFarChar(ToName), attr);
 {$ENDIF}
-        end;
       end;
     end;
   end;
@@ -715,10 +716,14 @@ begin
       begin
         with ContextData do
         begin
+          FromNameL := Copy(FromName, 1, Length(FromName));
+          ToNameL := Copy(ToName, 1, Length(ToName));
+          FSF.TruncPathStr(PFarChar(FromNameL), cSizeProgress);
+          FSF.TruncPathStr(PFarChar(ToNameL), cSizeProgress);
           if Move <> 0 then
-            FText := Format(GetMsg(MMoving), [FromName, ToName])
+            FText := Format(GetMsg(MMoving), [FromNameL, ToNameL])
           else
-            FText := Format(GetMsg(MCopying), [FromName, ToName]);
+            FText := Format(GetMsg(MCopying), [FromNameL, ToNameL]);
           FProgressBar := ProgressBar;
         end;
         Result := EdsSetProgressCallback(stream, @ProgressFunc,
@@ -908,7 +913,7 @@ begin
       begin
         MessStr := GetMsgStr(MFolderDeleted) + #10 +
           {$IFDEF UNICODE}
-            CharToWideChar(dirInfo_.szFileName);
+            CharToWideChar(dirInfo^.szFileName);
           {$ELSE}
             dirInfo_.szFileName;
           {$ENDIF}
@@ -917,14 +922,21 @@ begin
               GetMsg(MBtnCancel)], FMSG_WARNING) of
           //0: ; // delete
           1: delallfolder := True; // all
-          2: skip := True; // skip
-          3: Result := EDS_ERR_OPERATION_CANCELLED; //cancel
+          2:
+          begin
+            skip := True; // skip
+            Exit;
+          end;
+          3:
+          begin
+            Result := EDS_ERR_OPERATION_CANCELLED; //cancel
+            Exit;
+          end;
         end;
       end;
     end;
-    if not skip and (Result <> EDS_ERR_OK) then
+    if Result = EDS_ERR_OK then
       Result := EdsDeleteDirectoryItem(dirItem);
-    //Result := EDS_ERR_UNIMPLEMENTED;
     if Result <> EDS_ERR_OK then
     begin
       if skipall then

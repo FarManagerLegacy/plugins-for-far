@@ -271,7 +271,6 @@ begin
     EdsSetObjectEventHandler := GetProcAddress(EDSDKLib, 'EdsSetObjectEventHandler');
     EdsSetCameraStateEventHandler := GetProcAddress(EDSDKLib, 'EdsSetCameraStateEventHandler');
     EdsGetEvent := GetProcAddress(EDSDKLib, 'EdsGetEvent');
-
   end;
 end;
 
