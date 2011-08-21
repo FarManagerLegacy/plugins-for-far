@@ -94,9 +94,9 @@ OutputDir=..\DevBin
 UnitOutputDir=..\Dcu
 PackageDLLOutputDir=
 PackageDCPOutputDir=
-SearchPath=..\Lib;..\Lib\Kol;..\FarAPI;..\Common;CanonApi;..\Lib\RegEx
+SearchPath=..\Lib\Delphi;..\Lib\Kol;..\FarAPI;..\Common;CanonApi;..\Lib\RegEx
 Packages=rtl;vcl;vclx;indy;inet;xmlrtl;vclie;inetdbbde;inetdbxpress;dbrtl;dsnap;dsnapcon;vcldb;soaprtl;VclSmp;dbexpress;dbxcds;inetdb;bdertl;vcldbx;webdsnap;websnap;adortl;ibxpress;teeui;teedb;tee;dss;visualclx;visualdbclx;vclactnband;vclshlctrls;IntrawebDB_50_70;Intraweb_50_70;dclOfficeXP;kbmMemD7Run;PerlRegExD7;dxGDIPlusD7;cxLibraryVCLD7;dxCoreD7;cxEditorsVCLD7;dxThemeD7;cxDataD7;cxExtEditorsVCLD7;cxPageControlVCLD7;cxGridD7;cxVerticalGridVCLD7;dxmdsD7;cxPivotGridD7;cxPivotGridChartD7;cxPivotGridOLAPD7;dxNavBarD7;dxsbD7;dxComnD7;dxDockingD7;dxBarD7;dxBarDBNavD7;dxBarExtDBItemsD7;dxBarExtItemsD7;dxRibbonD7;cxBarEditItemD7;dxFlowChartD7;dxLayoutControlD7;cxTreeListVCLD7;cxSchedulerD7;cxSchedulerGridD7;dxdbtrD7;dxtrmdD7;cxSpreadSheetVCLD7;dxMasterViewD7;dxSpellCheckerD7;dxorgcD7;dxdborD7;Jcl;JclVcl;JvCoreD7R;JvSystemD7R;JvStdCtrlsD7R;JvAppFrmD7R;JvBandsD7R;JvDBD7R;JvDlgsD7R;JvBDED7R;JvCmpD7R;JvCryptD7R;JvCtrlsD7R;JvCustomD7R;JvDockingD7R;JvDotNetCtrlsD7R;JvEDID7R;JvGlobusD7R;JvHMID7R;JvInterpreterD7R;JvJansD7R;JvManagedThreadsD7R;JvMMD7R;JvNetD7R;JvPageCompsD7R;JvPluginD7R;JvPrintPreviewD7R;JvRuntimeDesignD7R;JvTimeFrameworkD7R;JvValidatorsD7R;JvWizardD7R;JvXPCtrlsD7R;CPortLib7
-Conditionals=NOT_USE_RICHEDIT
+Conditionals=UNICODE;UNICODE_CTRLS;NOT_USE_RICHEDIT
 DebugSourceDirs=
 UsePackages=0
 [Parameters]
@@ -136,8 +136,8 @@ ProductVersion=1.0.0.0
 Comments=
 [HistoryLists\hlConditionals]
 Count=4
-Item0=NOT_USE_RICHEDIT
-Item1=UNICODE;UNICODE_CTRLS;NOT_USE_RICHEDIT
+Item0=UNICODE;UNICODE_CTRLS;NOT_USE_RICHEDIT
+Item1=NOT_USE_RICHEDIT
 Item2=OUT_LOG;UNICODE;UNICODE_CTRLS;NOT_USE_RICHEDIT
 Item3=UNICODE
 [HistoryLists\hlUnitAliases]
@@ -145,8 +145,8 @@ Count=1
 Item0=WinTypes=Windows;WinProcs=Windows;DbiTypes=BDE;DbiProcs=BDE;DbiErrs=BDE;
 [HistoryLists\hlSearchPath]
 Count=7
-Item0=..\Lib;..\Lib\Kol;..\FarAPI;..\Common;CanonApi;..\Lib\RegEx
-Item1=..\Lib;..\Lib\Kol;..\FarAPI;..\Common;CanonApi
+Item0=..\Lib\Delphi;..\Lib\Kol;..\FarAPI;..\Common;CanonApi;..\Lib\RegEx
+Item1=..\Lib\Delphi;..\Lib\Kol;..\FarAPI;..\Common;CanonApi
 Item2=..\FarAPI;..\Common;CanonApi
 Item3=..\FarAPI;..\Common;CanonApi;EOSDll
 Item4=FarApi;CanonApi

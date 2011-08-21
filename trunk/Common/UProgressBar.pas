@@ -17,6 +17,7 @@ uses
 
 const
   cMaxBuf = 512;
+  cSizeProgress = 52;
 
 type
   TProgressBar = class
@@ -35,11 +36,11 @@ type
     function CheckForEsc: Boolean;
   public
     constructor Create(const aTitle: TFarString; aMaxCounter: Integer;
-      aShowPs: Boolean = True;
+      aSizeProgress: Integer = cSizeProgress; aShowPs: Boolean = True;
       aLinesBefore: Integer = 0; aLinesAfter: Integer = 0); overload;
     constructor Create(const aTitle: TFarString; aMaxCounter: Integer;
       aEsc: Boolean; aConfirmTitle: PFarChar = nil; aConfirmText: PFarChar = nil;
-      aShowPs: Boolean = True;
+      aSizeProgress: Integer = cSizeProgress; aShowPs: Boolean = True;
       aLinesBefore: Integer = 0; aLinesAfter: Integer = 0); overload;
     destructor Destroy; override;
     function UpdateProgress(counter: Integer;
@@ -53,8 +54,6 @@ type
 implementation
 
 const
-  cSizeProgress = 43;
-
 {$IFDEF UNICODE}
   chrVertLine = #$2502;
   chrUpArrow  = #$25B2;
@@ -99,7 +98,8 @@ begin
   until False;
 end;
 
-constructor TProgressBar.Create(const aTitle: TFarString; aMaxCounter: Integer;
+constructor TProgressBar.Create(const aTitle: TFarString;
+  aMaxCounter, aSizeProgress: Integer;
   aShowPs: Boolean; aLinesBefore, aLinesAfter: Integer);
 var
   i: Integer;
@@ -131,7 +131,7 @@ begin
   str := FTitle + #10;
   for i := 0 to FLinesBefore - 1 do
     str := str + #10;
-  FSizeProgress := cSizeProgress;
+  FSizeProgress := aSizeProgress;
   if FShowPs then
     Dec(FSizeProgress, 5);
   for i := 1 to FSizeProgress do
@@ -151,9 +151,9 @@ end;
 
 constructor TProgressBar.Create(const aTitle: TFarString; aMaxCounter: Integer;
   aEsc: Boolean; aConfirmTitle, aConfirmText: PFarChar;
-  aShowPs: Boolean; aLinesBefore, aLinesAfter: Integer);
+  aSizeProgress: Integer; aShowPs: Boolean; aLinesBefore, aLinesAfter: Integer);
 begin
-  Create(aTitle, aMaxCounter, aShowPs, aLinesBefore, aLinesAfter);
+  Create(aTitle, aMaxCounter, aSizeProgress, aShowPs, aLinesBefore, aLinesAfter);
   FEsc := aEsc;
   if FEsc then
   begin
