@@ -97,7 +97,9 @@ type
       var overall, skipall, overroall, skiproall, skipfile: Boolean): EdsError;
     function DeleteDirItem(dirItem: EdsDirectoryItemRef;
       dirInfo: PEdsDirectoryItemInfo; OpMode: Integer;
-      var skipall, delallfolder: Boolean): EdsError;
+      var skipall, delallfolder, skipfile: Boolean): EdsError; overload;
+    function DeleteDirItem(dirItem: EdsDirectoryItemRef;
+      dirInfo: PEdsDirectoryItemInfo = nil): EdsError; overload;
     function GetCameraInfo(var FindDataItem: TFindDataItem): Boolean;
     function GetVolumeInfo(aParentData: PPanelUserData;
       var FindDataItem: TFindDataItem): Boolean;
@@ -211,7 +213,8 @@ var
   UserData: PPanelUserData;
   edserr: EdsError;
   dirInfo: EdsDirectoryItemInfo;
-  skipall, delallfolder: Boolean;
+  skipall, delallfolder, skipfile: Boolean;
+  i: Integer;
 begin
   Result := 0;
   if (ItemsNumber > 0) and
@@ -250,21 +253,29 @@ begin
         (ShowMessage(GetMsg(MDeleteTitle), PFarChar(text),
           [GetMsg(MBtnDelete), GetMsg(MBtnCancel)]) = 0) then
       begin
-        if (ItemsNumber = 1) or
-          ((OpMode and OPM_SILENT <> 0) or
+        skipall := False;
+        delallfolder := FARAPI.AdvControl(FARAPI.ModuleNumber,
+          ACTL_GETCONFIRMATIONS, nil) and FCS_DELETENONEMPTYFOLDERS = 0;
+        skipfile := False;
+        edserr := EDS_ERR_OPERATION_CANCELLED;
+        if ItemsNumber = 1 then
+        begin
+          edserr := DeleteDirItem(UserData^.BaseRef, @dirInfo, OpMode, skipall,
+            delallfolder, skipfile);
+        end
+        else if (OpMode and OPM_SILENT <> 0) or
             (FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_GETCONFIRMATIONS, nil) and
               FCS_DELETE = 0) or
             (ShowMessage(GetMsg(MDeleteFilesTitle), PFarChar(text),
-              [GetMsg(MBtnAll), GetMsg(MBtnCancel)], FMSG_WARNING) = 0)) then
-        begin
-          skipall := False;
-          delallfolder := FARAPI.AdvControl(FARAPI.ModuleNumber,
-            ACTL_GETCONFIRMATIONS, nil) and FCS_DELETENONEMPTYFOLDERS = 0;
-          edserr := DeleteDirItem(UserData^.BaseRef, nil, OpMode, skipall,
-            delallfolder);
-          if edserr = EDS_ERR_OK then
-            Result := 1;
-        end;
+              [GetMsg(MBtnAll), GetMsg(MBtnCancel)], FMSG_WARNING) = 0) then
+          for i := 0 to ItemsNumber - 1 do
+          begin
+            UserData := PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData);
+            edserr := DeleteDirItem(UserData^.BaseRef, nil, OpMode, skipall,
+              delallfolder, skipfile);
+          end;
+        if edserr = EDS_ERR_OK then
+          Result := 1;
       end;
     end;
   end;
@@ -604,14 +615,12 @@ var
   dateTime: EdsTime;
   sysTime: TSystemTime;
   P: Pointer;
-  skipall_delete: Boolean;
   ContextData: TContextData;
   FromName, ToName: TFarString;
   FromNameL, ToNameL: TFarString;
   attr: Cardinal;
 begin
   Result := EDS_ERR_OK;
-  skipall_delete := True;
 {$IFDEF UNICODE}
   FromName := CharToWideChar(dirInfo.szFileName);
   ToName := AddEndSlash(DestPath) + CharToWideChar(dirInfo^.szFileName);
@@ -784,8 +793,7 @@ begin
         SetFileAttributesA(PFarChar(ToName), attrib);
 {$ENDIF}
         if Move <> 0 then
-          Result := DeleteDirItem(dirItem, dirInfo, OPM_SILENT, skipall_delete,
-            skipall_delete);
+          Result := DeleteDirItem(dirItem, dirInfo);
       end
       else if Result = EDS_ERR_OPERATION_CANCELLED then
       begin
@@ -808,7 +816,6 @@ var
   count, i: EdsUInt32;
   childRef: EdsDirectoryItemRef;
   childInfo: EdsDirectoryItemInfo;
-  skipall_delete: Boolean;
   skipfile: Boolean;
   fileAttr: EdsFileAttributes;
   dwFileAttributes: Cardinal;
@@ -874,23 +881,27 @@ begin
       end;
     end;
   if (Move <> 0) and (Result = EDS_ERR_OK) then
-  begin
-    skipall_delete := True;
-    Result := DeleteDirItem(dirItem, nil, OPM_SILENT, skipall_delete,
-      skipall_delete);
-  end;
+    Result := DeleteDirItem(dirItem);
+end;
+
+function TCanon.DeleteDirItem(dirItem: EdsDirectoryItemRef;
+  dirInfo: PEdsDirectoryItemInfo): EdsError;
+var
+  skip: Boolean;
+begin
+  skip := True;
+  Result := DeleteDirItem(dirItem, dirInfo, OPM_SILENT, skip, skip, skip);
 end;
 
 function TCanon.DeleteDirItem(dirItem: EdsDirectoryItemRef;
   dirInfo: PEdsDirectoryItemInfo; OpMode: Integer;
-  var skipall, delallfolder: Boolean): EdsError;
+  var skipall, delallfolder, skipfile: Boolean): EdsError;
 var
   text: PFarChar;
   MessStr: TFarString;
   retry: Boolean;
   dirInfo_: EdsDirectoryItemInfo;
   count: EdsUInt32;
-  skip: Boolean;
 begin
   if not Assigned(dirInfo) then
   begin
@@ -903,7 +914,7 @@ begin
   repeat
     Result := EDS_ERR_OK;
     retry := False;
-    skip := False;
+    skipfile := False;
     if (OpMode and OPM_SILENT = 0) and
       (dirInfo^.isFolder <> 0) and
       not delallfolder then
@@ -924,7 +935,7 @@ begin
           1: delallfolder := True; // all
           2:
           begin
-            skip := True; // skip
+            skipfile := True; // skip
             Exit;
           end;
           3:
