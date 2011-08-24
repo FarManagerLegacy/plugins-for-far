@@ -197,10 +197,15 @@ function GetFindData(hPlugin: THandle; var PanelItem: PPluginPanelItem;
   var ItemsNumber: Integer; OpMode: Integer): Integer; stdcall;
 {$ENDIF}
 begin
+  Result := 0;
   if hPlugin <> 0 then
-    Result := TCanon(hPlugin).GetFindData(PanelItem, ItemsNumber, OpMode)
-  else
-    Result := 0;
+    try
+      Result := TCanon(hPlugin).GetFindData(PanelItem, ItemsNumber, OpMode)
+    except
+      on E: Exception do
+        if E.Code = e_Custom then
+          ShowEdSdkError(E.ErrorCode);
+    end;
 {$IFDEF OUT_LOG}
   WriteLn(LogFile, 'GetFindData', ',', OpMode, '=', Result);
 {$ENDIF}
@@ -236,10 +241,15 @@ function SetDirectory(hPlugin: THandle; Dir: PFarChar;
   OpMode: Integer): Integer; stdcall;
 {$ENDIF}
 begin
+  Result := 0;
   if hPlugin <> 0 then
-    Result := TCanon(hPlugin).SetDirectory(Dir, OpMode)
-  else
-    Result := 0;
+    try
+      Result := TCanon(hPlugin).SetDirectory(Dir, OpMode);
+    except
+      on E: Exception do
+        if E.Code = e_Custom then
+          ShowEdSdkError(E.ErrorCode);
+    end;
 {$IFDEF OUT_LOG}
   WriteLn(LogFile, 'SetDirectory', ',', TFarString(Dir), ',', OpMode, '=', Result);
 {$ENDIF}
