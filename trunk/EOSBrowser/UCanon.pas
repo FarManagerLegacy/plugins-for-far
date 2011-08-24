@@ -39,9 +39,20 @@ type
   end;
 
   TFindDataItem = class
-    ParentData: PPanelUserData;
-    PanelItem: PPluginPanelItem;
-    ItemsNumber: Integer;
+  private
+    FParentData: PPanelUserData;
+    FPanelItem: PPluginPanelItem;
+    FItemsNumber: Integer;
+    procedure SetItemsNumber(const Value: Integer);
+  public
+    constructor Create;
+    destructor Destroy; override;
+    procedure DeleteItem(Index: Integer); overload;
+    procedure DeleteItem(const FileName: PFarChar); overload;
+
+    property ParentData: PPanelUserData read FParentData write FParentData;
+    property PanelItem: PPluginPanelItem read FPanelItem;
+    property ItemsNumber: Integer read FItemsNumber write SetItemsNumber;
   end;
 
   TCameraInfo = record
@@ -71,10 +82,8 @@ type
     FPanelModesArray: array[0..9] of TPanelMode;
     FColumnTitles: array[0..0] of PFarChar;
 
-    FFindDataItem: array of TFindDataItem;
+    FFindDataItemArray: array of TFindDataItem;
     FCurFindDataItem: Integer;
-
-    FCurrentSession: EdsBaseRef;
 
     FCameraInfo: TCameraInfo;
     FVolumeInfo: TVolumeInfo;
@@ -84,6 +93,7 @@ type
     class procedure FreeLib;
     class function OpenSession(session: EdsBaseRef): Boolean;
     class procedure CloseSession;
+    class function GetCurrentSession: EdsBaseRef;
 
     procedure SetFindDataName(var FindData: TFarFindData; FileName: PAnsiChar);
 
@@ -97,15 +107,14 @@ type
       var overall, skipall, overroall, skiproall, skipfile: Boolean): EdsError;
     function DeleteDirItem(dirItem: EdsDirectoryItemRef;
       dirInfo: PEdsDirectoryItemInfo; OpMode: Integer;
-      var skipall, delallfolder, skipfile: Boolean): EdsError; overload;
+      var skipall, delallfolder: Boolean): EdsError; overload;
     function DeleteDirItem(dirItem: EdsDirectoryItemRef;
       dirInfo: PEdsDirectoryItemInfo = nil): EdsError; overload;
-    function GetCameraInfo(var FindDataItem: TFindDataItem): Boolean;
+    procedure GetCameraInfo(var FindDataItem: TFindDataItem);
     function GetVolumeInfo(aParentData: PPanelUserData;
       var FindDataItem: TFindDataItem): Boolean;
     function GetDirectoryInfo(aParentData: PPanelUserData;
       var FindDataItem: TFindDataItem; getDateTime: Boolean): Boolean;
-    procedure FreeFindDataItem(FindDataItem: TFindDataItem);
     procedure SetInfoLinesCount(Value: Integer);
   public
     constructor Create(const FileName: TFarString);
@@ -128,11 +137,11 @@ function GetImageDate(stream: EdsStreamRef; dirItem: EdsDirectoryItemRef;
 function GetImageDate(dirItem: EdsDirectoryItemRef;
   var FileFime: TFileTime): EdsError; overload;
 
+procedure CheckEdsError(edserr: EdsError);
+
 implementation
 
 uses UDialogs;
-
-{ TCanon }
 
 function GetImageDate(stream: EdsStreamRef;
   dirItem: EdsDirectoryItemRef; var FileTime: TFileTime): EdsError;
@@ -185,6 +194,14 @@ begin
   end;
 end;
 
+procedure CheckEdsError(edserr: EdsError);
+begin
+  if edserr <> EDS_ERR_OK then
+    raise Exception.CreateCustom(edserr, '');
+end;
+
+{ TCanon }
+
 type
   TPluginPanelItemArray = array of TPluginPanelItem;
 
@@ -200,7 +217,6 @@ begin
     ColumnTypes := 'N';
     ColumnWidths := '0';
   end;
-  FCurrentSession := nil;
   FInfoLines := nil;
   FInfoLineCount := 0;
   // FARAPI.Control(INVALID_HANDLE_VALUE, FCTL_GETPANELSHORTINFO, @FPanelInfo);
@@ -213,7 +229,7 @@ var
   UserData: PPanelUserData;
   edserr: EdsError;
   dirInfo: EdsDirectoryItemInfo;
-  skipall, delallfolder, skipfile: Boolean;
+  skipall, delallfolder: Boolean;
   i: Integer;
 begin
   Result := 0;
@@ -256,12 +272,11 @@ begin
         skipall := False;
         delallfolder := FARAPI.AdvControl(FARAPI.ModuleNumber,
           ACTL_GETCONFIRMATIONS, nil) and FCS_DELETENONEMPTYFOLDERS = 0;
-        skipfile := False;
         edserr := EDS_ERR_OPERATION_CANCELLED;
         if ItemsNumber = 1 then
         begin
-          edserr := DeleteDirItem(UserData^.BaseRef, @dirInfo, OpMode, skipall,
-            delallfolder, skipfile);
+          edserr := DeleteDirItem(UserData^.BaseRef, @dirInfo,
+            OpMode, skipall, delallfolder);
         end
         else if (OpMode and OPM_SILENT <> 0) or
             (FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_GETCONFIRMATIONS, nil) and
@@ -271,8 +286,8 @@ begin
           for i := 0 to ItemsNumber - 1 do
           begin
             UserData := PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData);
-            edserr := DeleteDirItem(UserData^.BaseRef, nil, OpMode, skipall,
-              delallfolder, skipfile);
+            edserr := DeleteDirItem(UserData^.BaseRef, nil,
+              OpMode, skipall, delallfolder);
           end;
         if edserr = EDS_ERR_OK then
           Result := 1;
@@ -290,47 +305,14 @@ begin
     FreeMem(FInfoLines);
     FInfoLineCount := 0;
   end;
-  if Length(FFindDataItem) > 0 then
+  if Length(FFindDataItemArray) > 0 then
   begin
-    for i := Length(FFindDataItem) - 1 downto 0 do
-      FreeFindDataItem(FFindDataItem[i]);
-    SetLength(FFindDataItem, 0);
+    for i := Length(FFindDataItemArray) - 1 downto 0 do
+      FFindDataItemArray[i].Free;
+    SetLength(FFindDataItemArray, 0);
   end;
   FreeLib;
   inherited;
-end;
-
-procedure TCanon.FreeFindDataItem(FindDataItem: TFindDataItem);
-var
-  i: Integer;
-  BaseRef: EdsBaseRef;
-begin
-  with FindDataItem do
-  begin
-    if ItemsNumber > 0 then
-    begin
-      for i := 0 to ItemsNumber - 1 do
-      begin
-        BaseRef := PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData)^.BaseRef;
-        if BaseRef = FCurrentSession then
-        begin
-          CloseSession;
-          FCurrentSession := nil;
-        end;
-        EdsRelease(BaseRef);
-{$IFDEF UNICODE}
-        if Assigned(TPluginPanelItemArray(PanelItem)[i].FindData.cFileName) then
-          FreeMem(TPluginPanelItemArray(PanelItem)[i].FindData.cFileName);
-{$ENDIF}
-        FreeMem(PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData));
-      end;
-      FreeMem(PanelItem);
-    end;
-    Free;
-{$IFDEF OUT_LOG}
-    WriteLn(LogFile, 'FreeFindDataItem');
-{$ENDIF}
-  end;
 end;
 
 procedure TCanon.GetOpenPluginInfo(var Info: TOpenPluginInfo);
@@ -367,14 +349,15 @@ begin
     else
       PanelTitle := GetMsg(MPalelTitle);
 
-    if (FCurFindDataItem >= 0) and (FCurFindDataItem < Length(FFindDataItem)) then
+    if (FCurFindDataItem >= 0) and
+      (FCurFindDataItem < Length(FFindDataItemArray)) then
     begin
       if FCurFindDataItem = 0 then
       begin
         FColumnTitles[0] := GetMsg(MCameraName);
         SetTitles := True;
       end
-      else if FFindDataItem[FCurFindDataItem].ParentData^.BaseRefType = brtCamera then
+      else if FFindDataItemArray[FCurFindDataItem].ParentData^.BaseRefType = brtCamera then
       begin
         FColumnTitles[0] := GetMsg(MVolumeName);
         SetTitles := True;
@@ -391,7 +374,7 @@ begin
       else
         Flags := Flags + OPIF_USEFILTER + OPIF_USESORTGROUPS + OPIF_USEHIGHLIGHTING;
       if FCurFindDataItem > 0 then
-        case FFindDataItem[FCurFindDataItem].ParentData^.BaseRefType of
+        case FFindDataItemArray[FCurFindDataItem].ParentData^.BaseRefType of
           brtCamera:
           begin
             Info.InfoLinesNumber := 7;
@@ -559,8 +542,6 @@ begin
                     AddEndSlash(NewDestPath) + dirInfo.szFileName,
                     Move, silent, ProgressBar, overall, skipall, overroall, skiproall);
 {$ENDIF}
-
-
               end;
               if edserr <> EDS_ERR_OK then
                 Break
@@ -815,7 +796,7 @@ function TCanon.RecursiveDownload(dirItem: EdsDirectoryItemRef;
 var
   count, i: EdsUInt32;
   childRef: EdsDirectoryItemRef;
-  childInfo: EdsDirectoryItemInfo;
+  childInfo, dirInfo: EdsDirectoryItemInfo;
   skipfile: Boolean;
   fileAttr: EdsFileAttributes;
   dwFileAttributes: Cardinal;
@@ -846,11 +827,11 @@ begin
 {$IFDEF UNICODE}
             Result := RecursiveDownload(childRef,
               AddEndSlash(DestPath) + CharToWideChar(childInfo.szFileName),
-              Move, silent, ProgressBar, overall, skipall, overroall, skiproall)
+              0, {Move,} silent, ProgressBar, overall, skipall, overroall, skiproall)
 {$ELSE}
             Result := RecursiveDownload(childRef,
               AddEndSlash(DestPath) + childInfo.szFileName,
-              Move, silent, ProgressBar, overall, skipall, overroall, skiproall)
+              0, {Move,} silent, ProgressBar, overall, skipall, overroall, skiproall)
 {$ENDIF}
           else
           begin
@@ -871,7 +852,7 @@ begin
             else
               dwFileAttributes := FILE_ATTRIBUTE_ARCHIVE;
             Result := DownloadFile(childRef, @childInfo, DestPath,
-              Move, silent, ProgressBar, dwFileAttributes,
+              0, {Move,} silent, ProgressBar, dwFileAttributes,
               overall, skipall, overroall, skiproall, skipfile);
           end;
         end;
@@ -881,7 +862,7 @@ begin
       end;
     end;
   if (Move <> 0) and (Result = EDS_ERR_OK) then
-    Result := DeleteDirItem(dirItem);
+    DeleteDirItem(dirItem, @dirInfo);
 end;
 
 function TCanon.DeleteDirItem(dirItem: EdsDirectoryItemRef;
@@ -890,18 +871,19 @@ var
   skip: Boolean;
 begin
   skip := True;
-  Result := DeleteDirItem(dirItem, dirInfo, OPM_SILENT, skip, skip, skip);
+  Result := DeleteDirItem(dirItem, dirInfo, OPM_SILENT, skip, skip);
 end;
 
 function TCanon.DeleteDirItem(dirItem: EdsDirectoryItemRef;
   dirInfo: PEdsDirectoryItemInfo; OpMode: Integer;
-  var skipall, delallfolder, skipfile: Boolean): EdsError;
+  var skipall, delallfolder: Boolean): EdsError;
 var
   text: PFarChar;
   MessStr: TFarString;
   retry: Boolean;
   dirInfo_: EdsDirectoryItemInfo;
   count: EdsUInt32;
+  FileName: TFarString;
 begin
   if not Assigned(dirInfo) then
   begin
@@ -911,33 +893,27 @@ begin
     else
       Exit;
   end;
+{$IFDEF UNICODE}
+  FileName := CharToWideChar(dirInfo.szFileName);
+{$ELSE}
+  FileName := dirInfo.szFileName;
+{$ENDIF}
   repeat
     Result := EDS_ERR_OK;
     retry := False;
-    skipfile := False;
     if (OpMode and OPM_SILENT = 0) and
-      (dirInfo^.isFolder <> 0) and
-      not delallfolder then
+      (dirInfo^.isFolder <> 0) and not delallfolder then
     begin
       Result := EdsGetChildCount(dirItem, count);
       if count <> 0 then
       begin
-        MessStr := GetMsgStr(MFolderDeleted) + #10 +
-          {$IFDEF UNICODE}
-            CharToWideChar(dirInfo^.szFileName);
-          {$ELSE}
-            dirInfo_.szFileName;
-          {$ENDIF}
+        MessStr := GetMsgStr(MFolderDeleted) + #10 + FileName;
         case ShowMessage(GetMsg(MDeleteFolderTitle), PFarChar(MessStr),
             [GetMsg(MBtnDelete), GetMsg(MBtnAll), GetMsg(MBtnSkip),
               GetMsg(MBtnCancel)], FMSG_WARNING) of
           //0: ; // delete
           1: delallfolder := True; // all
-          2:
-          begin
-            skipfile := True; // skip
-            Exit;
-          end;
+          2: Exit;
           3:
           begin
             Result := EDS_ERR_OPERATION_CANCELLED; //cancel
@@ -947,101 +923,87 @@ begin
       end;
     end;
     if Result = EDS_ERR_OK then
-      Result := EdsDeleteDirectoryItem(dirItem);
-    if Result <> EDS_ERR_OK then
     begin
-      if skipall then
-        Result := EDS_ERR_OK
+      Result := EdsDeleteDirectoryItem(dirItem);
+      if Result = EDS_ERR_OK then
+        FFindDataItemArray[FCurFindDataItem].DeleteItem(PFarChar(FileName))
       else
       begin
-        if dirInfo^.isFolder <> 0 then
-          text := GetMsg(MCannotDelFolder)
+        if skipall then
+          Result := EDS_ERR_OK
         else
-          text := GetMsg(MCannotDelFile);
+        begin
+          if dirInfo^.isFolder <> 0 then
+            text := GetMsg(MCannotDelFolder)
+          else
+            text := GetMsg(MCannotDelFile);
 {$IFDEF UNICODE}
-        MessStr := Format(text, [CharToWideChar(dirInfo^.szFileName)]);
+          MessStr := Format(text, [CharToWideChar(dirInfo^.szFileName)]);
 {$ELSE}
-        MessStr := Format(text, [dirInfo^.szFileName]);
+          MessStr := Format(text, [dirInfo^.szFileName]);
 {$ENDIF}
-        case ShowMessage(GetMsg(MError), PFarChar(MessStr),
-            [GetMsg(MBtnRetry), GetMsg(MBtnSkip), GetMsg(MBtnSkipAll),
-              GetMsg(MBtnCancel)],
-            FMSG_WARNING) of
-          0: // Retry
-          begin
-            Result := EDS_ERR_OK;
-            retry := True;
+          case ShowMessage(GetMsg(MError), PFarChar(MessStr),
+              [GetMsg(MBtnRetry), GetMsg(MBtnSkip), GetMsg(MBtnSkipAll),
+                GetMsg(MBtnCancel)],
+              FMSG_WARNING) of
+            0: // Retry
+            begin
+              Result := EDS_ERR_OK;
+              retry := True;
+            end;
+            1: Result := EDS_ERR_OK; // Skip
+            2: // SkipAll
+            begin
+              Result := EDS_ERR_OK;
+              skipall := True;
+            end;
+            3: ; // Cancel
           end;
-          1: Result := EDS_ERR_OK; // Skip
-          2: // SkipAll
-          begin
-            Result := EDS_ERR_OK;
-            skipall := True;
-          end;
-          3: ; // Cancel
         end;
       end;
     end;
   until not retry;
 end;
 
-function TCanon.GetCameraInfo(var FindDataItem: TFindDataItem): Boolean;
+procedure TCanon.GetCameraInfo(var FindDataItem: TFindDataItem);
 var
   cameraList: EdsCameraListRef;
   deviceInfo: EdsDeviceInfo;
   camera: EdsCameraRef;
   count: EdsUInt32;
-  edserr: EdsError;
   i: Integer;
   PanelUserData: PPanelUserData;
 begin
-  Result := False;
-  with FindDataItem do
-  begin
-    cameraList := nil;
-    count := 0;
-
-    { get list of camera }
-    edserr := EdsGetCameraList(cameraList);
-
-    if edserr = EDS_ERR_OK then
+  cameraList := nil;
+  count := 0;
+  { get list of camera }
+  CheckEdsError(EdsGetCameraList(cameraList));
+  { get number of camera }
+  CheckEdsError(EdsGetChildCount(cameraList, count));
+  if count > 0 then
+    with FindDataItem do
     begin
-      { get number of camera }
-      edserr := EdsGetChildCount(cameraList, count);
-      if edserr = EDS_ERR_OK then
-        if count > 0 then
+      ItemsNumber := count;
+      for i := 0 to count - 1 do
+      begin
+        camera := nil;
+        EdsGetChildAtIndex(cameraList, i, camera);
+        if Assigned(camera) then
         begin
-          ItemsNumber := count;
-          GetMem(PanelItem, ItemsNumber * SizeOf(TPluginPanelItem));
-          ZeroMemory(PanelItem, ItemsNumber * SizeOf(TPluginPanelItem));
-          for i := 0 to count - 1 do
+          CheckEdsError(EdsGetDeviceInfo(camera, deviceInfo));
+          with TPluginPanelItemArray(PanelItem)[i] do
           begin
-            camera := nil;
-            EdsGetChildAtIndex(cameraList, i, camera);
-            if Assigned(camera) then
-            begin
-              edserr := EdsGetDeviceInfo(camera, deviceInfo);
-              if edserr = EDS_ERR_OK then
-              begin
-                with TPluginPanelItemArray(PanelItem)[i] do
-                begin
-                  //Flags := PPIF_USERDATA;
-                  SetFindDataName(FindData, deviceInfo.szDeviceDescription);
-                  FindData.dwFileAttributes := FILE_ATTRIBUTE_DIRECTORY;
-                  GetMem(PanelUserData, SizeOf(TPanelUserData));
-                  PanelUserData^.BaseRef := camera;
-                  PanelUserData^.BaseRefType := brtCamera;
-                  UserData := Cardinal(PanelUserData);
-                  Result := True;
-                end;
-              end;
-            end;
+            //Flags := PPIF_USERDATA;
+            SetFindDataName(FindData, deviceInfo.szDeviceDescription);
+            FindData.dwFileAttributes := FILE_ATTRIBUTE_DIRECTORY;
+            GetMem(PanelUserData, SizeOf(TPanelUserData));
+            PanelUserData^.BaseRef := camera;
+            PanelUserData^.BaseRefType := brtCamera;
+            UserData := Cardinal(PanelUserData);
           end;
-        end
-        else
-          Result := True;
-    end;
-  end;
+        end;
+      end;
+    end
 end;
 
 function TCanon.GetDirectoryInfo(aParentData: PPanelUserData;
@@ -1074,8 +1036,6 @@ begin
       if count > 0 then
       begin
         ItemsNumber := count;
-        GetMem(PanelItem, ItemsNumber * SizeOf(TPluginPanelItem));
-        ZeroMemory(PanelItem, ItemsNumber * SizeOf(TPluginPanelItem));
         if getDateTime and (count > 10) then
         begin
           if FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_GETCONFIRMATIONS, nil) and
@@ -1196,8 +1156,6 @@ begin
       if count > 0 then
       begin
         ItemsNumber := count;
-        GetMem(PanelItem, ItemsNumber * SizeOf(TPluginPanelItem));
-        ZeroMemory(PanelItem, ItemsNumber * SizeOf(TPluginPanelItem));
         for i := 0 to count - 1 do
         begin
           volume := nil;
@@ -1250,21 +1208,24 @@ function TCanon.GetFindData(var PanelItem: PPluginPanelItem;
   var ItemsNumber: Integer; OpMode: Integer): Integer;
 begin
   Result := 0;
-  if Length(FFindDataItem) = 0 then
+  if Length(FFindDataItemArray) = 0 then
   begin
-    SetLength(FFindDataItem, 1);
+    SetLength(FFindDataItemArray, 1);
     FCurFindDataItem := 0;
-    FFindDataItem[FCurFindDataItem] := TFindDataItem.Create;
-    if not GetCameraInfo(FFindDataItem[FCurFindDataItem]) then
-    begin
-      FFindDataItem[FCurFindDataItem].Free;
-      SetLength(FFindDataItem, 0);
+    FFindDataItemArray[FCurFindDataItem] := TFindDataItem.Create;
+    try
+      GetCameraInfo(FFindDataItemArray[FCurFindDataItem]);
+    except
+      FFindDataItemArray[FCurFindDataItem].Free;
+      SetLength(FFindDataItemArray, 0);
+      raise;
     end;
   end;
-  if (FCurFindDataItem >= 0) and (FCurFindDataItem < Length(FFindDataItem)) then
+  if (FCurFindDataItem >= 0) and
+    (FCurFindDataItem < Length(FFindDataItemArray)) then
   begin
-    PanelItem := FFindDataItem[FCurFindDataItem].PanelItem;
-    ItemsNumber := FFindDataItem[FCurFindDataItem].ItemsNumber;
+    PanelItem := FFindDataItemArray[FCurFindDataItem].PanelItem;
+    ItemsNumber := FFindDataItemArray[FCurFindDataItem].ItemsNumber;
     Result := 1;
   end;
 end;
@@ -1302,13 +1263,6 @@ begin
 end;
 
 function TCanon.SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
-  function ChDirDown(NewDir: PFarChar; var NewFindDataItem: Integer;
-    var NewDirectory: TFarString): Boolean;
-  var
-    i, CurFindDataItem: Integer;
-    UserData: PPanelUserData;
-    edserr: EdsError;
-    volumeInfo: EdsVolumeInfo;
   function GetProperty(camera: EdsCameraRef; PropertyId: EdsPropertyID;
     ff: TFormatFunction = nil): TFarString;
   const
@@ -1319,62 +1273,70 @@ function TCanon.SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
     datetime: EdsTime;
     p: Pointer;
     datatype, size: EdsUInt32;
-    edserr: EdsError;
   begin
     Result := '';
-    edserr := EdsGetPropertySize(camera, PropertyId, 0, datatype, size);
-    if edserr = EDS_ERR_OK then
-    begin
+    try
+      CheckEdsError(EdsGetPropertySize(camera, PropertyId, 0, datatype, size));
       if EdsEnumDataType(datatype) = kEdsDataType_String then
       begin
         p := @str;
-        if EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)) = EDS_ERR_OK then
-          if Assigned(ff) then
-            Result := ff(str)
-          else
+        CheckEdsError(
+          EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)));
+        if Assigned(ff) then
+          Result := ff(str)
+        else
 {$IFDEF UNICODE}
-            Result := CharToWideChar(str);
+          Result := CharToWideChar(str);
 {$ELSE}
-            Result := str;
+          Result := str;
 {$ENDIF}
       end
       else if EdsEnumDataType(datatype) = kEdsDataType_Time then
       begin
         P := @datetime;
-        if EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)) = EDS_ERR_OK then
-          if Assigned(ff) then
-            Result := ff(datetime)
-          else
-            Result := Format(cDateTimeFmt, [
-              datetime.day, datetime.month, datetime.year,
-              datetime.hour, datetime.minute, datetime.second]);
+        CheckEdsError(
+          EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)));
+        if Assigned(ff) then
+          Result := ff(datetime)
+        else
+          Result := Format(cDateTimeFmt, [
+            datetime.day, datetime.month, datetime.year,
+            datetime.hour, datetime.minute, datetime.second]);
       end
       else if EdsEnumDataType(datatype) in [kEdsDataType_Int32] then
       begin
         p := @data;
-        if EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)) = EDS_ERR_OK then
-          if Assigned(ff) then
-            Result := ff(data)
-          else
-            Result := Format('%d', [data]);
+        CheckEdsError(
+          EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)));
+        if Assigned(ff) then
+          Result := ff(data)
+        else
+          Result := Format('%d', [data]);
       end
       else if EdsEnumDataType(datatype) in [kEdsDataType_UInt32] then
       begin
         p := @data;
-        if EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)) = EDS_ERR_OK then
-          if Assigned(ff) then
-            Result := ff(data)
-          else
-            Result := Format('%u', [data]);
+        CheckEdsError(EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)));
+        if Assigned(ff) then
+          Result := ff(data)
+        else
+          Result := Format('%u', [data]);
       end;
-    end
-    else
+    except
       Result := GetMsgStr(MPropertyUnavailable);
+    end;
   end;
+  function ChDirDown(NewDir: PFarChar; var NewFindDataItem: Integer;
+    var NewDirectory: TFarString): Boolean;
+  var
+    i, CurFindDataItem: Integer;
+    UserData: PPanelUserData;
+    edserr: EdsError;
+    volumeInfo: EdsVolumeInfo;
   begin
     Result := False;
     UserData := nil;
-    with FFindDataItem[NewFindDataItem] do
+    with FFindDataItemArray[NewFindDataItem] do
       if ItemsNumber > 0 then
       begin
         for i := 0 to ItemsNumber - 1 do
@@ -1389,8 +1351,8 @@ function TCanon.SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
     if Assigned(UserData) then
     begin
       edserr := EDS_ERR_OK;
-      for i := NewFindDataItem + 1 to Length(FFindDataItem) - 1 do
-        if UserData^.BaseRef = FFindDataItem[i].ParentData^.BaseRef then
+      for i := NewFindDataItem + 1 to Length(FFindDataItemArray) - 1 do
+        if UserData^.BaseRef = FFindDataItemArray[i].ParentData^.BaseRef then
         begin
           NewFindDataItem := i;
           Result := True;
@@ -1398,21 +1360,19 @@ function TCanon.SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
         end;
       if not Result then
       begin
-        CurFindDataItem := Length(FFindDataItem);
-        SetLength(FFindDataItem, CurFindDataItem + 1);
-        FFindDataItem[CurFindDataItem] := TFindDataItem.Create;
+        CurFindDataItem := Length(FFindDataItemArray);
+        SetLength(FFindDataItemArray, CurFindDataItem + 1);
+        FFindDataItemArray[CurFindDataItem] := TFindDataItem.Create;
         case UserData^.BaseRefType of
           brtCamera:
           begin
             Result := True;
-            if FCurrentSession <> UserData^.BaseRef then
+            if GetCurrentSession <> UserData^.BaseRef then
             begin
-              if Assigned(FCurrentSession) then
-                CloseSession;
+              CloseSession;
               Result := OpenSession(UserData^.BaseRef);
               if Result then
               begin
-                FCurrentSession := UserData^.BaseRef;
                 with FCameraInfo do
                 begin
                   CameraName := NewDir;
@@ -1424,14 +1384,13 @@ function TCanon.SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
                     kEdsPropID_BatteryLevel, @FormatBatteryLevel);
                   BatteryQuality := GetProperty(UserData^.BaseRef,
                     kEdsPropID_BatteryQuality, @FormatBatteryQuality);
-                  // GetProperty(UserData^.BaseRef, kEdsPropID_ProductName);
                 end;
               end;
             end
             else
               edserr := EDS_ERR_OK;
             if Result and (edserr = EDS_ERR_OK) then
-              Result := GetVolumeInfo(UserData, FFindDataItem[CurFindDataItem]);
+              Result := GetVolumeInfo(UserData, FFindDataItemArray[CurFindDataItem]);
           end;
           brtVolume:
           with FVolumeInfo do
@@ -1463,19 +1422,19 @@ function TCanon.SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
               MaxCapacity := '';
               FreeSpace := '';
             end;
-            Result := GetDirectoryInfo(UserData, FFindDataItem[CurFindDataItem],
+            Result := GetDirectoryInfo(UserData, FFindDataItemArray[CurFindDataItem],
               True);
           end;
           brtDirItem:
-            Result := GetDirectoryInfo(UserData, FFindDataItem[CurFindDataItem],
+            Result := GetDirectoryInfo(UserData, FFindDataItemArray[CurFindDataItem],
               True);
         end;
         if Result then
           NewFindDataItem := CurFindDataItem
         else
         begin
-          FFindDataItem[CurFindDataItem].Free;
-          SetLength(FFindDataItem, CurFindDataItem);
+          FFindDataItemArray[CurFindDataItem].Free;
+          SetLength(FFindDataItemArray, CurFindDataItem);
         end;
       end;
       if Result then
@@ -1495,9 +1454,9 @@ function TCanon.SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
     i, j: Integer;
   begin
     Result := False;
-    UserData := FFindDataItem[NewFindDataItem].ParentData;
+    UserData := FFindDataItemArray[NewFindDataItem].ParentData;
     for i := NewFindDataItem - 1 downto 0 do
-      with FFindDataItem[i] do
+      with FFindDataItemArray[i] do
       begin
         for j := 0 to ItemsNumber - 1 do
         begin
@@ -1517,14 +1476,10 @@ function TCanon.SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
           else
           begin
             NewDirectory := '';
-            for j := Length(FFindDataItem) - 1 to 1 do
-              FreeFindDataItem(FFindDataItem[j]);
-            SetLength(FFindDataItem, 1);
-            if Assigned(FCurrentSession) then
-            begin
-              CloseSession;
-              FCurrentSession := nil;
-            end;
+            for j := Length(FFindDataItemArray) - 1 to 1 do
+              FFindDataItemArray[j].Free;
+            SetLength(FFindDataItemArray, 1);
+            CloseSession;
           end;
           Break;
         end;
@@ -1549,7 +1504,8 @@ begin
     end;
     Result := 1;
   end
-  else if (FCurFindDataItem >= 0) and (FCurFindDataItem < Length(FFindDataItem)) then
+  else if (FCurFindDataItem >= 0) and
+    (FCurFindDataItem < Length(FFindDataItemArray)) then
   begin
     if Dir = cUpDir then
     begin
@@ -1711,6 +1667,81 @@ begin
     else
       ShowEdSdkError(edserr);
   end;
+end;
+
+class function TCanon.GetCurrentSession: EdsBaseRef;
+begin
+  Result := CurrentSession;
+end;
+
+{ TFindDataItem }
+
+procedure TFindDataItem.DeleteItem(Index: Integer);
+begin
+  Dec(FItemsNumber);
+  if Index < ItemsNumber then
+    MoveMemory(@TPluginPanelItemArray(PanelItem)[Index],
+      @TPluginPanelItemArray(PanelItem)[Index + 1],
+      (ItemsNumber - Index) * SizeOf(TPluginPanelItem));
+end;
+
+constructor TFindDataItem.Create;
+begin
+  inherited;
+  FItemsNumber := 0;
+end;
+
+procedure TFindDataItem.DeleteItem(const FileName: PFarChar);
+var
+  i: Integer;
+begin
+  for i := 0 to ItemsNumber - 1 do
+{$IFDEF UNICODE}
+    if WStrComp(TPluginPanelItemArray(PanelItem)[i].FindData.cFileName, FileName) = 0 then
+{$ELSE}
+    if StrComp(TPluginPanelItemArray(PanelItem)[i].FindData.cFileName, FileName) = 0 then
+{$ENDIF}
+    begin
+      DeleteItem(i);
+      Break;
+    end;
+end;
+
+destructor TFindDataItem.Destroy;
+var
+  i: Integer;
+  BaseRef: EdsBaseRef;
+begin
+  if ItemsNumber > 0 then
+  begin
+    for i := 0 to ItemsNumber - 1 do
+    begin
+      BaseRef := PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData)^.BaseRef;
+      if BaseRef = TCanon.GetCurrentSession then
+        TCanon.CloseSession;
+      EdsRelease(BaseRef);
+{$IFDEF UNICODE}
+      if Assigned(TPluginPanelItemArray(PanelItem)[i].FindData.cFileName) then
+        FreeMem(TPluginPanelItemArray(PanelItem)[i].FindData.cFileName);
+{$ENDIF}
+      FreeMem(PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData));
+    end;
+    FreeMem(PanelItem);
+  end;
+{$IFDEF OUT_LOG}
+  WriteLn(LogFile, 'FreeFindDataItem');
+{$ENDIF}
+  inherited;
+end;
+
+procedure TFindDataItem.SetItemsNumber(const Value: Integer);
+begin
+{$IFDEF OUT_LOG}
+  WriteLn(LogFile, 'GetFreeFindDataItem');
+{$ENDIF}
+  FItemsNumber := Value;
+  GetMem(FPanelItem, FItemsNumber * SizeOf(TPluginPanelItem));
+  ZeroMemory(FPanelItem, FItemsNumber * SizeOf(TPluginPanelItem));
 end;
 
 initialization

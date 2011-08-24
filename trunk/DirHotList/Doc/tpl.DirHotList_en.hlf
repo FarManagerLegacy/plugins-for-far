@@ -22,6 +22,9 @@ not to like it. They are following:
     4. Both shortcuts and groups can be moved into other groups.
     5. "Hot keys" can be assigned to both shortcuts and groups.
 
+    The plugin is written on the model of plugin DirHotList by Sergei Popov,
+from which a large extent taken this help file.
+
  See also:
   ~Working with shortcuts list~@DirectoryHotlist@
 
