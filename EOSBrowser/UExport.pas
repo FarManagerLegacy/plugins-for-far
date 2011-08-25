@@ -6,6 +6,7 @@ interface
 
 uses
   Windows,
+  Kol,
   err,
 {$IFDEF UNICODE}
   PluginW,
@@ -57,7 +58,9 @@ end;
 *)
 var
   PluginMenuStrings: array[0..0] of PFarChar;
+{$IFNDEF UNICODE}
   DiskMenuNumbers: array[0..0] of Integer;
+{$ENDIF}
 
 {$IFDEF UNICODE}
 procedure GetPluginInfoW(var pi: TPluginInfo); stdcall;
@@ -81,8 +84,10 @@ begin
   if ConfigData.AddToDiskMenu then
   begin
     pi.DiskMenuStrings := @PluginMenuStrings;
+{$IFNDEF UNICODE}
     DiskMenuNumbers[0] := ConfigData.DiskMenuNumber;
     pi.DiskMenuNumbers := @DiskMenuNumbers;
+{$ENDIF}
     pi.DiskMenuStringsNumber := 1;
   end
   else
@@ -106,13 +111,18 @@ var
   Dir: PFarChar;
   PanelItem: PPluginPanelItem;
   ItemsNumber: Integer;
+  LibraryPath: TFarString;
 begin
 {$IFDEF OUT_LOG}
   WriteLn(LogFile, 'OpenPlugin');
 {$ENDIF}
   Result := INVALID_HANDLE_VALUE;
   try
-    Canon := TCanon.Create(ConfigData.LibraryPath + 'EDSDK.dll');
+    if ConfigData.LibraryPath = '' then
+      LibraryPath := ExtractFilePath(FARAPI.ModuleName)
+    else
+      LibraryPath := ConfigData.LibraryPath;
+    Canon := TCanon.Create(LibraryPath + 'EDSDK.dll');
     Result := THandle(Canon);
     if OpenFrom = OPEN_COMMANDLINE then
     begin
@@ -126,9 +136,8 @@ begin
     end;
   except
     on E: Exception do
-      ShowMessage(GetMsg(MError),
-        PFarChar(GetMsgStr(MInitError) + #10 + E.Message),
-        FMSG_WARNING or FMSG_MB_OK);
+      if E.Code = e_Custom then
+        ShowError(E.ErrorCode, E.Message);
   end;
 end;
 
@@ -204,7 +213,7 @@ begin
     except
       on E: Exception do
         if E.Code = e_Custom then
-          ShowEdSdkError(E.ErrorCode);
+          ShowError(E.ErrorCode, E.Message);
     end;
 {$IFDEF OUT_LOG}
   WriteLn(LogFile, 'GetFindData', ',', OpMode, '=', Result);
@@ -248,7 +257,7 @@ begin
     except
       on E: Exception do
         if E.Code = e_Custom then
-          ShowEdSdkError(E.ErrorCode);
+          ShowError(E.ErrorCode, E.Message);
     end;
 {$IFDEF OUT_LOG}
   WriteLn(LogFile, 'SetDirectory', ',', TFarString(Dir), ',', OpMode, '=', Result);
@@ -270,10 +279,15 @@ begin
 {$IFDEF OUT_LOG}
   WriteLn(LogFile, 'DeleteFiles', ',', OpMode);
 {$ENDIF}
+  Result := 0;
   if hPlugin <> 0 then
-    Result := TCanon(hPlugin).DeleteFiles(PanelItem, ItemsNumber, OpMode)
-  else
-    Result := 0;
+    try
+      Result := TCanon(hPlugin).DeleteFiles(PanelItem, ItemsNumber, OpMode)
+    except
+      on E: Exception do
+        if E.Code = e_Custom then
+          ShowError(E.ErrorCode, E.Message);
+    end;
 end;
 
 (*
@@ -291,11 +305,16 @@ begin
 {$IFDEF OUT_LOG}
   WriteLn(LogFile, 'GetFiles', ',', OpMode);
 {$ENDIF}
+  Result := 0;
   if hPlugin <> 0 then
-    Result := TCanon(hPlugin).GetFiles(PanelItem, ItemsNumber, Move, DestPath,
-      OpMode)
-  else
-    Result := 0;
+    try
+      Result := TCanon(hPlugin).GetFiles(PanelItem, ItemsNumber, Move, DestPath,
+        OpMode)
+    except
+      on E: Exception do
+        if E.Code = e_Custom then
+          ShowError(E.ErrorCode, E.Message);
+    end;
 end;
 
 (*

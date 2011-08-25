@@ -49,6 +49,7 @@ type
     destructor Destroy; override;
     procedure DeleteItem(Index: Integer); overload;
     procedure DeleteItem(const FileName: PFarChar); overload;
+    procedure ClearItems;
 
     property ParentData: PPanelUserData read FParentData write FParentData;
     property PanelItem: PPluginPanelItem read FPanelItem;
@@ -66,8 +67,8 @@ type
 
   TVolumeInfo = record
     VolumeName: TFarString;
-    StorageType: TFarString; // 0 = no card,    1 = CD,    2 = SD
-    Access: TFarString; // 0 = Read only   1 = Write only   2 Read/Write
+    StorageType: TFarString; // 0 = no card   1 = CD         2 = SD
+    Access: TFarString;      // 0 = Read only 1 = Write only 2 = Read/Write
     MaxCapacity: TFarString;
     FreeSpace: TFarString;
   end;
@@ -91,30 +92,30 @@ type
   private
     class procedure LoadLib(const FileName: TFarString);
     class procedure FreeLib;
-    class function OpenSession(session: EdsBaseRef): Boolean;
+    class procedure OpenSession(session: EdsBaseRef);
     class procedure CloseSession;
     class function GetCurrentSession: EdsBaseRef;
 
     procedure SetFindDataName(var FindData: TFarFindData; FileName: PAnsiChar);
 
-    function RecursiveDownload(dirItem: EdsDirectoryItemRef;
+    procedure RecursiveDownload(dirItem: EdsDirectoryItemRef;
       const DestPath: TFarString; Move: Integer; Silent: Boolean;
       ProgressBar: TProgressBar;
-      var overall, skipall, overroall, skiproall: Boolean): EdsError;
-    function DownloadFile(dirItem: EdsDirectoryItemRef;
+      var overall, skipall, overroall, skiproall: Boolean);
+    procedure DownloadFile(dirItem: EdsDirectoryItemRef;
       dirInfo: PEdsDirectoryItemInfo; DestPath: TFarString; Move: Integer;
       Silent: Boolean; ProgressBar: TProgressBar; attrib: Cardinal;
-      var overall, skipall, overroall, skiproall, skipfile: Boolean): EdsError;
-    function DeleteDirItem(dirItem: EdsDirectoryItemRef;
+      var overall, skipall, overroall, skiproall, skipfile: Boolean);
+    procedure DeleteDirItem(dirItem: EdsDirectoryItemRef;
       dirInfo: PEdsDirectoryItemInfo; OpMode: Integer;
-      var skipall, delallfolder: Boolean): EdsError; overload;
-    function DeleteDirItem(dirItem: EdsDirectoryItemRef;
-      dirInfo: PEdsDirectoryItemInfo = nil): EdsError; overload;
+      var skipall, delallfolder: Boolean); overload;
+    procedure DeleteDirItem(dirItem: EdsDirectoryItemRef;
+      dirInfo: PEdsDirectoryItemInfo = nil); overload;
     procedure GetCameraInfo(var FindDataItem: TFindDataItem);
-    function GetVolumeInfo(aParentData: PPanelUserData;
-      var FindDataItem: TFindDataItem): Boolean;
-    function GetDirectoryInfo(aParentData: PPanelUserData;
-      var FindDataItem: TFindDataItem; getDateTime: Boolean): Boolean;
+    procedure GetVolumeInfo(aParentData: PPanelUserData;
+      var FindDataItem: TFindDataItem);
+    procedure GetDirectoryInfo(aParentData: PPanelUserData;
+      var FindDataItem: TFindDataItem; getDateTime: Boolean);
     procedure SetInfoLinesCount(Value: Integer);
   public
     constructor Create(const FileName: TFarString);
@@ -132,10 +133,10 @@ type
     property CurDirectory: TFarString read FCurDirectory;
   end;
 
-function GetImageDate(stream: EdsStreamRef; dirItem: EdsDirectoryItemRef;
-  var FileTime: TFileTime): EdsError; overload;
-function GetImageDate(dirItem: EdsDirectoryItemRef;
-  var FileFime: TFileTime): EdsError; overload;
+procedure GetImageDate(stream: EdsStreamRef; dirItem: EdsDirectoryItemRef;
+  var FileTime: TFileTime); overload;
+procedure GetImageDate(dirItem: EdsDirectoryItemRef;
+  var FileFime: TFileTime); overload;
 
 procedure CheckEdsError(edserr: EdsError);
 
@@ -143,8 +144,8 @@ implementation
 
 uses UDialogs;
 
-function GetImageDate(stream: EdsStreamRef;
-  dirItem: EdsDirectoryItemRef; var FileTime: TFileTime): EdsError;
+procedure GetImageDate(stream: EdsStreamRef; dirItem: EdsDirectoryItemRef;
+  var FileTime: TFileTime);
 var
   image: EdsImageRef;
   sysTime: TSystemTime;
@@ -153,43 +154,35 @@ var
   P: Pointer;
 begin
   // Получение информации о дате/времени
-  Result := EdsDownloadThumbnail(dirItem, stream);
-  if Result = EDS_ERR_OK then
-  begin
-    Result := EdsCreateImageRef(stream, image);
-    if Result = EDS_ERR_OK then
-    begin
-      P := @dateTime;
-      Result := EdsGetPropertyData(image,
-        kEdsPropID_DateTime, 0, SizeOf(EdsTime),
-        Pointer(P^));
-      if Result = EDS_ERR_OK then
-      begin
-        sysTime.wYear := dateTime.year;
-        sysTime.wMonth := dateTime.month;
-        sysTime.wDay := dateTime.day;
-        sysTime.wHour := dateTime.hour;
-        sysTime.wMinute := dateTime.minute;
-        sysTime.wSecond := dateTime.second;
-        sysTime.wMilliseconds := dateTime.millseconds;
+  CheckEdsError(EdsDownloadThumbnail(dirItem, stream));
+  CheckEdsError(EdsCreateImageRef(stream, image));
+  try
+    P := @dateTime;
+    CheckEdsError(EdsGetPropertyData(image, kEdsPropID_DateTime, 0,
+      SizeOf(EdsTime), Pointer(P^)));
+    sysTime.wYear := dateTime.year;
+    sysTime.wMonth := dateTime.month;
+    sysTime.wDay := dateTime.day;
+    sysTime.wHour := dateTime.hour;
+    sysTime.wMinute := dateTime.minute;
+    sysTime.wSecond := dateTime.second;
+    sysTime.wMilliseconds := dateTime.millseconds;
 
-        SystemTimeToFileTime(sysTime, localFileTime);
-        LocalFileTimeToFileTime(localFileTime, FileTime);
-      end;
-      EdsRelease(image);
-    end;
+    SystemTimeToFileTime(sysTime, localFileTime);
+    LocalFileTimeToFileTime(localFileTime, FileTime);
+  finally
+    EdsRelease(image);
   end;
 end;
 
-function GetImageDate(dirItem: EdsDirectoryItemRef;
-  var FileFime: TFileTime): EdsError;
+procedure GetImageDate(dirItem: EdsDirectoryItemRef; var FileFime: TFileTime);
 var
   stream: EdsStreamRef;
 begin
-  Result := EdsCreateMemoryStream(0, stream);
-  if Result = EDS_ERR_OK then
-  begin
-    Result := GetImageDate(stream, dirItem, FileFime);
+  CheckEdsError(EdsCreateMemoryStream(0, stream));
+  try
+    GetImageDate(stream, dirItem, FileFime);
+  finally
     EdsRelease(stream);
   end;
 end;
@@ -227,72 +220,66 @@ function TCanon.DeleteFiles(PanelItem: PPluginPanelItem; ItemsNumber,
 var
   text: TFarString;
   UserData: PPanelUserData;
-  edserr: EdsError;
   dirInfo: EdsDirectoryItemInfo;
   skipall, delallfolder: Boolean;
   i: Integer;
 begin
   Result := 0;
-  if (ItemsNumber > 0) and
-    (TPluginPanelItemArray(PanelItem)[0].UserData <> 0) then
-  begin
-    UserData := PPanelUserData(TPluginPanelItemArray(PanelItem)[0].UserData);
-    if UserData^.BaseRefType = brtDirItem then
+  try
+    if (ItemsNumber > 0) and
+      (TPluginPanelItemArray(PanelItem)[0].UserData <> 0) then
     begin
-      if ItemsNumber = 1 then
+      UserData := PPanelUserData(TPluginPanelItemArray(PanelItem)[0].UserData);
+      if UserData^.BaseRefType = brtDirItem then
       begin
-        if UserData^.BaseRefType = brtDirItem then
+        if ItemsNumber = 1 then
         begin
-          edserr := EdsGetDirectoryItemInfo(UserData^.BaseRef, dirInfo);
-          if edserr = EDS_ERR_OK then
+          if UserData^.BaseRefType = brtDirItem then
           begin
+            CheckEdsError(EdsGetDirectoryItemInfo(UserData^.BaseRef, dirInfo));
             if dirInfo.isFolder = 0 then
               text := GetMsgStr(MDeleteFile)
             else
               text := GetMsgStr(MDeleteFolder);
-{$IFDEF UNICODE}
+  {$IFDEF UNICODE}
               text := Format(text, [CharToWideChar(dirInfo.szFileName)]);
-{$ELSE}
+  {$ELSE}
               text := Format(text, [dirInfo.szFileName]);
-{$ENDIF}
+  {$ENDIF}
           end
           else
             Exit;
         end
         else
-          Exit;
-      end
-      else
-        text := Format(GetMsg(MDeleteItems), [ItemsNumber,
-          GetMsg(TLanguageID(Ord(MOneOk) + GetOk(ItemsNumber)))]);
-      if (OpMode and OPM_SILENT <> 0) or
-        (ShowMessage(GetMsg(MDeleteTitle), PFarChar(text),
-          [GetMsg(MBtnDelete), GetMsg(MBtnCancel)]) = 0) then
-      begin
-        skipall := False;
-        delallfolder := FARAPI.AdvControl(FARAPI.ModuleNumber,
-          ACTL_GETCONFIRMATIONS, nil) and FCS_DELETENONEMPTYFOLDERS = 0;
-        edserr := EDS_ERR_OPERATION_CANCELLED;
-        if ItemsNumber = 1 then
+          text := Format(GetMsg(MDeleteItems), [ItemsNumber,
+            GetMsg(TLanguageID(Ord(MOneOk) + GetOk(ItemsNumber)))]);
+        if (OpMode and OPM_SILENT <> 0) or
+          (ShowMessage(GetMsg(MDeleteTitle), PFarChar(text),
+            [GetMsg(MBtnDelete), GetMsg(MBtnCancel)]) = 0) then
         begin
-          edserr := DeleteDirItem(UserData^.BaseRef, @dirInfo,
-            OpMode, skipall, delallfolder);
-        end
-        else if (OpMode and OPM_SILENT <> 0) or
-            (FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_GETCONFIRMATIONS, nil) and
-              FCS_DELETE = 0) or
-            (ShowMessage(GetMsg(MDeleteFilesTitle), PFarChar(text),
-              [GetMsg(MBtnAll), GetMsg(MBtnCancel)], FMSG_WARNING) = 0) then
-          for i := 0 to ItemsNumber - 1 do
-          begin
-            UserData := PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData);
-            edserr := DeleteDirItem(UserData^.BaseRef, nil,
-              OpMode, skipall, delallfolder);
-          end;
-        if edserr = EDS_ERR_OK then
+          skipall := False;
+          delallfolder := FARAPI.AdvControl(FARAPI.ModuleNumber,
+            ACTL_GETCONFIRMATIONS, nil) and FCS_DELETENONEMPTYFOLDERS = 0;
+          if ItemsNumber = 1 then
+            DeleteDirItem(UserData^.BaseRef, @dirInfo, OpMode, skipall, delallfolder)
+          else if (OpMode and OPM_SILENT <> 0) or
+              (FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_GETCONFIRMATIONS, nil) and
+                FCS_DELETE = 0) or
+              (ShowMessage(GetMsg(MDeleteFilesTitle), PFarChar(text),
+                [GetMsg(MBtnAll), GetMsg(MBtnCancel)], FMSG_WARNING) = 0) then
+            for i := 0 to ItemsNumber - 1 do
+            begin
+              UserData := PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData);
+              DeleteDirItem(UserData^.BaseRef, nil, OpMode, skipall, delallfolder);
+            end;
           Result := 1;
+        end;
       end;
     end;
+  except
+    on E: Exception do
+      if (E.Code = e_Custom) and (E.ErrorCode <> EDS_ERR_OPERATION_CANCELLED) then
+        raise;
   end;
 end;
 
@@ -427,7 +414,6 @@ var
   title: PFarChar;
   subtitle: TFarString;
   dirInfo: EdsDirectoryItemInfo;
-  edserr: EdsError;
   ProgressBar: TProgressBar;
   silent: Boolean;
   overall, skipall, overroall, skiproall, skipfile: Boolean;
@@ -440,7 +426,7 @@ begin
   begin
     UserData := PPanelUserData(TPluginPanelItemArray(PanelItem)[0].UserData);
     if UserData^.BaseRefType = brtDirItem then
-    begin
+    try
       silent := OpMode and OPM_SILENT <> 0;
       title := nil;
       if not silent then
@@ -480,87 +466,83 @@ begin
         StrLCopy(NewDestPath, DestPath, MAX_PATH);
 {$ENDIF}
       if not DirectoryExists(NewDestPath) and not ForceDirectories(NewDestPath) then
-        edserr := EDS_ERR_DIR_NOT_FOUND
-      else
-        edserr := EDS_ERR_OK;
-      if edserr = EDS_ERR_OK then
+        raise Exception.CreateCustom(EDS_ERR_DIR_NOT_FOUND, '');
+      if not silent then
       begin
-        if not silent then
+        if FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_GETCONFIRMATIONS, nil) and
+          FCS_INTERRUPTOPERATION <> 0 then
         begin
-          if FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_GETCONFIRMATIONS, nil) and
-            FCS_INTERRUPTOPERATION <> 0 then
-          begin
-            FInterruptTitle := GetMsg(MInterruptTitle);
-            FInterruptText := GetMsg(MInterruptText);
-          end
-          else
-          begin
-            FInterruptTitle := nil;
-            FInterruptText := nil;
-          end;
-          ProgressBar := TProgressBar.Create(title, 100, True,
-            FInterruptTitle, FInterruptText, cSizeProgress, True, 4)
+          FInterruptTitle := GetMsg(MInterruptTitle);
+          FInterruptText := GetMsg(MInterruptText);
         end
         else
-          ProgressBar := nil;
-        try
-          if Move <> 0 then
-            overall := FARAPI.AdvControl(FARAPI.ModuleNumber,
-              ACTL_GETCONFIRMATIONS, nil) and FCS_MOVEOVERWRITE = 0
-          else
-            overall := FARAPI.AdvControl(FARAPI.ModuleNumber,
-              ACTL_GETCONFIRMATIONS, nil) and FCS_COPYOVERWRITE = 0;
-{$IFDEF UNICODE}
-          overroall := FARAPI.AdvControl(FARAPI.ModuleNumber,
-              ACTL_GETCONFIRMATIONS, nil) and FCS_OVERWRITEDELETEROFILES = 0;
-{$ELSE}
-          overroall := False;
-{$ENDIF}
-          skipall := False;
-          skiproall := False;
-          for i := 0 to ItemsNumber - 1 do
-          begin
-            UserData := PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData);
-            if UserData^.BaseRefType = brtDirItem then
-            begin
-              edserr := EdsGetDirectoryItemInfo(UserData^.BaseRef, dirInfo);
-              skipfile := False;
-              if edserr = EDS_ERR_OK then
-              begin
-                if dirInfo.isFolder = 0 then
-                  edserr := DownloadFile(UserData^.BaseRef, @dirInfo, NewDestPath,
-                    Move, silent, ProgressBar,
-                    TPluginPanelItemArray(PanelItem)[i].FindData.dwFileAttributes,
-                    overall, skipall, overroall, skiproall, skipfile)
-                else
-{$IFDEF UNICODE}
-                  edserr := RecursiveDownload(UserData^.BaseRef,
-                    AddEndSlash(NewDestPath) + CharToWideChar(dirInfo.szFileName),
-                    Move, silent, ProgressBar, overall, skipall, overroall, skiproall);
-{$ELSE}
-                  edserr := RecursiveDownload(UserData^.BaseRef,
-                    AddEndSlash(NewDestPath) + dirInfo.szFileName,
-                    Move, silent, ProgressBar, overall, skipall, overroall, skiproall);
-{$ENDIF}
-              end;
-              if edserr <> EDS_ERR_OK then
-                Break
-              else if not skipfile then
-                TPluginPanelItemArray(PanelItem)[i].Flags :=
-                  TPluginPanelItemArray(PanelItem)[i].Flags and not PPIF_SELECTED;
-            end;
-          end;
-        finally
-          if Assigned(ProgressBar) then
-            ProgressBar.Free;
+        begin
+          FInterruptTitle := nil;
+          FInterruptText := nil;
         end;
+        ProgressBar := TProgressBar.Create(title, 100, True,
+          FInterruptTitle, FInterruptText, cSizeProgress, True, 4)
+      end
+      else
+        ProgressBar := nil;
+      try
+        if Move <> 0 then
+          overall := FARAPI.AdvControl(FARAPI.ModuleNumber,
+            ACTL_GETCONFIRMATIONS, nil) and FCS_MOVEOVERWRITE = 0
+        else
+          overall := FARAPI.AdvControl(FARAPI.ModuleNumber,
+            ACTL_GETCONFIRMATIONS, nil) and FCS_COPYOVERWRITE = 0;
+{$IFDEF UNICODE}
+        overroall := FARAPI.AdvControl(FARAPI.ModuleNumber,
+            ACTL_GETCONFIRMATIONS, nil) and FCS_OVERWRITEDELETEROFILES = 0;
+{$ELSE}
+        overroall := False;
+{$ENDIF}
+        skipall := False;
+        skiproall := False;
+        for i := 0 to ItemsNumber - 1 do
+        begin
+          UserData := PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData);
+          if UserData^.BaseRefType = brtDirItem then
+          begin
+            CheckEdsError(EdsGetDirectoryItemInfo(UserData^.BaseRef, dirInfo));
+            skipfile := False;
+            if dirInfo.isFolder = 0 then
+              DownloadFile(UserData^.BaseRef, @dirInfo, NewDestPath,
+                Move, silent, ProgressBar,
+                TPluginPanelItemArray(PanelItem)[i].FindData.dwFileAttributes,
+                overall, skipall, overroall, skiproall, skipfile)
+            else
+{$IFDEF UNICODE}
+              RecursiveDownload(UserData^.BaseRef,
+                AddEndSlash(NewDestPath) + CharToWideChar(dirInfo.szFileName),
+                Move, silent, ProgressBar, overall, skipall, overroall, skiproall);
+{$ELSE}
+              RecursiveDownload(UserData^.BaseRef,
+                AddEndSlash(NewDestPath) + dirInfo.szFileName,
+                Move, silent, ProgressBar, overall, skipall, overroall, skiproall);
+{$ENDIF}
+            if not skipfile then
+              TPluginPanelItemArray(PanelItem)[i].Flags :=
+                TPluginPanelItemArray(PanelItem)[i].Flags and not PPIF_SELECTED;
+          end;
+        end;
+      finally
+        if Assigned(ProgressBar) then
+          ProgressBar.Free;
       end;
-      if edserr = EDS_ERR_OK then
-        Result := 1
-      else if edserr = EDS_ERR_OPERATION_CANCELLED then
+      if OpMode = 0 then
+        // Если возвращать 1 при копировании, то сбрасывается выделение с
+        // пропущенных файлов
         Result := -1
       else
-        ShowEdSdkError(edserr);
+        Result := 1;
+    except
+      on E: Exception do
+        if (E.Code = e_Custom) and (E.ErrorCode = EDS_ERR_OPERATION_CANCELLED) then
+          Result := -1
+        else
+          raise;
     end;
   end;
 end;
@@ -582,16 +564,15 @@ begin
       Result := EDS_ERR_OK;
 end;
 
-function TCanon.DownloadFile(dirItem: EdsDirectoryItemRef;
+procedure TCanon.DownloadFile(dirItem: EdsDirectoryItemRef;
   dirInfo: PEdsDirectoryItemInfo; DestPath: TFarString; Move: Integer;
   Silent: Boolean; ProgressBar: TProgressBar; attrib: Cardinal;
-  var overall, skipall, overroall, skiproall, skipfile: Boolean): EdsError;
+  var overall, skipall, overroall, skiproall, skipfile: Boolean);
 var
   stream: EdsStreamRef;
   image: EdsImageRef;
   localFileTime, filetime: TFileTime;
   hFile: THandle;
-  edserr: EdsError;
 
   dateTime: EdsTime;
   sysTime: TSystemTime;
@@ -601,7 +582,6 @@ var
   FromNameL, ToNameL: TFarString;
   attr: Cardinal;
 begin
-  Result := EDS_ERR_OK;
 {$IFDEF UNICODE}
   FromName := CharToWideChar(dirInfo.szFileName);
   ToName := AddEndSlash(DestPath) + CharToWideChar(dirInfo^.szFileName);
@@ -635,73 +615,64 @@ begin
             Exit;
           end;
           4: // Cancel
-            Result := EDS_ERR_OPERATION_CANCELLED;
+            raise Exception.CreateCustom(EDS_ERR_OPERATION_CANCELLED, '');
         end;
       finally
         Free;
       end;
-    if Result <> EDS_ERR_OPERATION_CANCELLED then
+{$IFDEF UNICODE}
+    attr := GetFileAttributesW(PFarChar(ToName));
+{$ELSE}
+    attr := GetFileAttributesA(PFarChar(ToName));
+{$ENDIF}
+    if attr and FILE_ATTRIBUTE_READONLY <> 0 then
     begin
-{$IFDEF UNICODE}
-      attr := GetFileAttributesW(PFarChar(ToName));
-{$ELSE}
-      attr := GetFileAttributesA(PFarChar(ToName));
-{$ENDIF}
-      if attr and FILE_ATTRIBUTE_READONLY <> 0 then
+      if skiproall then
       begin
-        if skiproall then
-        begin
-          skipfile := True;
-          Exit;
-        end
-        else if not overroall then
-          with TOverDlg.Create(ToName, GetMsg(MFileReadOnly), dirItem, dirInfo) do
-          try
-            case Execute of
-              //0: // Overwrite
-              1: // All
-                overroall := True;
-              2: // Skip
-              begin
-                skipfile := True;
-                Exit;
-              end;
-              3: // Skip All
-              begin
-                skiproall := True;
-                skipfile := True;
-                Exit;
-              end;
-              4: // Cancel
-              begin
-                Result := EDS_ERR_OPERATION_CANCELLED;
-                Exit;
-              end;
+        skipfile := True;
+        Exit;
+      end
+      else if not overroall then
+        with TOverDlg.Create(ToName, GetMsg(MFileReadOnly), dirItem, dirInfo) do
+        try
+          case Execute of
+            //0: // Overwrite
+            1: // All
+              overroall := True;
+            2: // Skip
+            begin
+              skipfile := True;
+              Exit;
             end;
-          finally
-            Free;
+            3: // Skip All
+            begin
+              skiproall := True;
+              skipfile := True;
+              Exit;
+            end;
+            4: // Cancel
+              raise Exception.CreateCustom(EDS_ERR_OPERATION_CANCELLED, '');
           end;
-        attr := attr and not FILE_ATTRIBUTE_READONLY;
+        finally
+          Free;
+        end;
+      attr := attr and not FILE_ATTRIBUTE_READONLY;
 {$IFDEF UNICODE}
-        SetFileAttributesW(PFarChar(ToName), attr);
+      SetFileAttributesW(PFarChar(ToName), attr);
 {$ELSE}
-        SetFileAttributesA(PFarChar(ToName), attr);
+      SetFileAttributesA(PFarChar(ToName), attr);
 {$ENDIF}
-      end;
     end;
   end;
-
-  if Result = EDS_ERR_OK then
-  begin
 {$IFDEF UNICODE}
-    Result := EdsCreateFileStreamEx(PFarChar(ToName),
-      kEdsFileCreateDisposition_CreateAlways, kEdsAccess_ReadWrite, stream);
+  CheckEdsError(EdsCreateFileStreamEx(PFarChar(ToName),
+    kEdsFileCreateDisposition_CreateAlways, kEdsAccess_ReadWrite, stream));
 {$ELSE}
-    Result := EdsCreateFileStream(PFarChar(ToName),
-      kEdsFileCreateDisposition_CreateAlways, kEdsAccess_ReadWrite, stream);
+  CheckEdsError(EdsCreateFileStream(PFarChar(ToName),
+    kEdsFileCreateDisposition_CreateAlways, kEdsAccess_ReadWrite, stream));
 {$ENDIF}
-    if Result = EDS_ERR_OK then
-    begin
+  try
+    try
       if not Silent then
       begin
         with ContextData do
@@ -716,87 +687,76 @@ begin
             FText := Format(GetMsg(MCopying), [FromNameL, ToNameL]);
           FProgressBar := ProgressBar;
         end;
-        Result := EdsSetProgressCallback(stream, @ProgressFunc,
-          kEdsProgressOption_Periodically, EdsUInt32(@ContextData));
+        CheckEdsError(EdsSetProgressCallback(stream, @ProgressFunc,
+          kEdsProgressOption_Periodically, EdsUInt32(@ContextData)));
       end;
-      if Result = EDS_ERR_OK then
-      begin
-        Result := EdsDownload(dirItem, dirInfo.size, stream);
-        if Result = EDS_ERR_OK then
-        begin
-          Result := EdsDownloadComplete(dirItem);
+      CheckEdsError(EdsDownload(dirItem, dirInfo.size, stream));
+      CheckEdsError(EdsDownloadComplete(dirItem));
 
-          if Result = EDS_ERR_OK then
-          begin
-            edserr := EdsCreateImageRef(stream, image);
-            if edserr = EDS_ERR_OK then
-            begin
-              P := @dateTime;
-              edserr := EdsGetPropertyData(image, kEdsPropID_DateTime, 0,
-                SizeOf(EdsTime), Pointer(P^));
-              if edserr = EDS_ERR_OK then
-              begin
-                sysTime.wYear := dateTime.year;
-                sysTime.wMonth := dateTime.month;
-                sysTime.wDay := dateTime.day;
-                sysTime.wHour := dateTime.hour;
-                sysTime.wMinute := dateTime.minute;
-                sysTime.wSecond := dateTime.second;
-                sysTime.wMilliseconds := dateTime.millseconds;
+      CheckEdsError(EdsCreateImageRef(stream, image));
+      try
+        P := @dateTime;
+        CheckEdsError(EdsGetPropertyData(image, kEdsPropID_DateTime, 0,
+          SizeOf(EdsTime), Pointer(P^)));
+        sysTime.wYear := dateTime.year;
+        sysTime.wMonth := dateTime.month;
+        sysTime.wDay := dateTime.day;
+        sysTime.wHour := dateTime.hour;
+        sysTime.wMinute := dateTime.minute;
+        sysTime.wSecond := dateTime.second;
+        sysTime.wMilliseconds := dateTime.millseconds;
 
-                SystemTimeToFileTime(sysTime, localFileTime);
-                LocalFileTimeToFileTime(localFileTime, FileTime);
-              end;
-              EdsRelease(image);
-            end;
-          end;
-        end;
+        SystemTimeToFileTime(sysTime, localFileTime);
+        LocalFileTimeToFileTime(localFileTime, FileTime);
+      finally
+        EdsRelease(image);
       end;
+    finally
       EdsRelease(stream);
-      if Result = EDS_ERR_OK then
-      begin
+    end;
+  except
+    on E: Exception do
+    begin
+      if (E.Code = e_Custom) and (E.ErrorCode = EDS_ERR_OPERATION_CANCELLED) and
+          FileExists(ToName) then
 {$IFDEF UNICODE}
-        hFile := CreateFileW(PFarChar(ToName), GENERIC_WRITE, 0, nil,
-          OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+        DeleteFileW(PFarChar(ToName));
 {$ELSE}
-        hFile := CreateFileA(PFarChar(ToName), GENERIC_WRITE, 0, nil,
-          OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+        DeleteFileA(PFarChar(ToName));
 {$ENDIF}
-        if hFile <> INVALID_HANDLE_VALUE then
-        begin
-          // Менять только время изменения
-          SetFileTime(hFile, nil, nil, @filetime);
-          CloseHandle(hFile);
-        end;
-{$IFDEF UNICODE}
-        SetFileAttributesW(PFarChar(ToName), attrib);
-{$ELSE}
-        SetFileAttributesA(PFarChar(ToName), attrib);
-{$ENDIF}
-        if Move <> 0 then
-          Result := DeleteDirItem(dirItem, dirInfo);
-      end
-      else if Result = EDS_ERR_OPERATION_CANCELLED then
-      begin
-        if FileExists(ToName) then
-{$IFDEF UNICODE}
-          DeleteFileW(PFarChar(ToName));
-{$ELSE}
-          DeleteFileA(PFarChar(ToName));
-{$ENDIF}
-      end;
+      raise;
     end;
   end;
+{$IFDEF UNICODE}
+  hFile := CreateFileW(PFarChar(ToName), GENERIC_WRITE, 0, nil,
+    OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+{$ELSE}
+  hFile := CreateFileA(PFarChar(ToName), GENERIC_WRITE, 0, nil,
+    OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+{$ENDIF}
+  if hFile <> INVALID_HANDLE_VALUE then
+  begin
+    // Менять только время изменения
+    SetFileTime(hFile, nil, nil, @filetime);
+    CloseHandle(hFile);
+  end;
+{$IFDEF UNICODE}
+  SetFileAttributesW(PFarChar(ToName), attrib);
+{$ELSE}
+  SetFileAttributesA(PFarChar(ToName), attrib);
+{$ENDIF}
+  if Move <> 0 then
+    DeleteDirItem(dirItem, dirInfo);
 end;
 
-function TCanon.RecursiveDownload(dirItem: EdsDirectoryItemRef;
+procedure TCanon.RecursiveDownload(dirItem: EdsDirectoryItemRef;
   const DestPath: TFarString; Move: Integer; Silent: Boolean;
   ProgressBar: TProgressBar;
-  var overall, skipall, overroall, skiproall: Boolean): EdsError;
+  var overall, skipall, overroall, skiproall: Boolean);
 var
   count, i: EdsUInt32;
   childRef: EdsDirectoryItemRef;
-  childInfo, dirInfo: EdsDirectoryItemInfo;
+  childInfo: EdsDirectoryItemInfo;
   skipfile: Boolean;
   fileAttr: EdsFileAttributes;
   dwFileAttributes: Cardinal;
@@ -808,75 +768,67 @@ begin
 {$ELSE}
     if not CreateDirectoryA(PFarChar(DestPath), nil) then
 {$ENDIF}
-    begin
-      Result := EDS_ERR_DIR_NOT_FOUND;
-      Exit;
-    end;
+      raise Exception.CreateCustom(EDS_ERR_DIR_NOT_FOUND, '');
   end;
-  Result := EdsGetChildCount(dirItem, count);
-  if (Result = EDS_ERR_OK) and (count > 0) then
+  CheckEdsError(EdsGetChildCount(dirItem, count));
+  if count > 0 then
     for i := 0 to count - 1 do
     begin
-      Result := EdsGetChildAtIndex(dirItem, i, childRef);
-      if Result = EDS_ERR_OK then
-      begin
-        Result := EdsGetDirectoryItemInfo(childRef, childInfo);
-        if Result = EDS_ERR_OK then
-        begin
-          if childInfo.isFolder <> 0 then
+      CheckEdsError(EdsGetChildAtIndex(dirItem, i, childRef));
+      CheckEdsError(EdsGetDirectoryItemInfo(childRef, childInfo));
+      try
+        if childInfo.isFolder <> 0 then
 {$IFDEF UNICODE}
-            Result := RecursiveDownload(childRef,
-              AddEndSlash(DestPath) + CharToWideChar(childInfo.szFileName),
-              0, {Move,} silent, ProgressBar, overall, skipall, overroall, skiproall)
+          RecursiveDownload(childRef,
+            AddEndSlash(DestPath) + CharToWideChar(childInfo.szFileName),
+            0, {Move,} silent, ProgressBar, overall, skipall, overroall, skiproall)
 {$ELSE}
-            Result := RecursiveDownload(childRef,
-              AddEndSlash(DestPath) + childInfo.szFileName,
-              0, {Move,} silent, ProgressBar, overall, skipall, overroall, skiproall)
+          RecursiveDownload(childRef,
+            AddEndSlash(DestPath) + childInfo.szFileName,
+            0, {Move,} silent, ProgressBar, overall, skipall, overroall, skiproall)
 {$ENDIF}
-          else
+        else
+        begin
+          if EdsGetAttribute(childRef, fileAttr) = EDS_ERR_OK then
           begin
-            if EdsGetAttribute(childRef, fileAttr) = EDS_ERR_OK then
-            begin
-              dwFileAttributes := 0;
-              if Ord(fileAttr) and Ord(kEdsFileAttribute_Normal) <> 0 then
-                dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_NORMAL;
-              if Ord(fileAttr) and Ord(kEdsFileAttribute_ReadOnly) <> 0 then
-                dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_READONLY;
-              if Ord(fileAttr) and Ord(kEdsFileAttribute_Hidden) <> 0 then
-                dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_HIDDEN;
-              if Ord(fileAttr) and Ord(kEdsFileAttribute_System) <> 0 then
-                dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_SYSTEM;
-              if Ord(fileAttr) and Ord(kEdsFileAttribute_Archive) <> 0 then
-                dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_ARCHIVE;
-            end
-            else
-              dwFileAttributes := FILE_ATTRIBUTE_ARCHIVE;
-            Result := DownloadFile(childRef, @childInfo, DestPath,
-              0, {Move,} silent, ProgressBar, dwFileAttributes,
-              overall, skipall, overroall, skiproall, skipfile);
-          end;
+            dwFileAttributes := 0;
+            if Ord(fileAttr) and Ord(kEdsFileAttribute_Normal) <> 0 then
+              dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_NORMAL;
+            if Ord(fileAttr) and Ord(kEdsFileAttribute_ReadOnly) <> 0 then
+              dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_READONLY;
+            if Ord(fileAttr) and Ord(kEdsFileAttribute_Hidden) <> 0 then
+              dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_HIDDEN;
+            if Ord(fileAttr) and Ord(kEdsFileAttribute_System) <> 0 then
+              dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_SYSTEM;
+            if Ord(fileAttr) and Ord(kEdsFileAttribute_Archive) <> 0 then
+              dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_ARCHIVE;
+          end
+          else
+            dwFileAttributes := FILE_ATTRIBUTE_ARCHIVE;
+          DownloadFile(childRef, @childInfo, DestPath,
+            0, {Move,} silent, ProgressBar, dwFileAttributes,
+            overall, skipall, overroall, skiproall, skipfile);
         end;
+      finally
         EdsRelease(childRef);
-        if Result <> EDS_ERR_OK then
-          Break;
       end;
     end;
-  if (Move <> 0) and (Result = EDS_ERR_OK) then
-    DeleteDirItem(dirItem, @dirInfo);
+  if Move <> 0 then
+    DeleteDirItem(dirItem);
 end;
 
-function TCanon.DeleteDirItem(dirItem: EdsDirectoryItemRef;
-  dirInfo: PEdsDirectoryItemInfo): EdsError;
+procedure TCanon.DeleteDirItem(dirItem: EdsDirectoryItemRef;
+  dirInfo: PEdsDirectoryItemInfo);
 var
   skip: Boolean;
 begin
   skip := True;
-  Result := DeleteDirItem(dirItem, dirInfo, OPM_SILENT, skip, skip);
+  DeleteDirItem(dirItem, dirInfo, OPM_SILENT, skip, skip);
 end;
 
-function TCanon.DeleteDirItem(dirItem: EdsDirectoryItemRef;
+procedure TCanon.DeleteDirItem(dirItem: EdsDirectoryItemRef;
   dirInfo: PEdsDirectoryItemInfo; OpMode: Integer;
-  var skipall, delallfolder: Boolean): EdsError;
+  var skipall, delallfolder: Boolean);
 var
   text: PFarChar;
   MessStr: TFarString;
@@ -887,11 +839,8 @@ var
 begin
   if not Assigned(dirInfo) then
   begin
-    Result := EdsGetDirectoryItemInfo(dirItem, dirInfo_);
-    if Result = EDS_ERR_OK then
-      dirInfo := @dirInfo_
-    else
-      Exit;
+    CheckEdsError(EdsGetDirectoryItemInfo(dirItem, dirInfo_));
+    dirInfo := @dirInfo_;
   end;
 {$IFDEF UNICODE}
   FileName := CharToWideChar(dirInfo.szFileName);
@@ -899,12 +848,11 @@ begin
   FileName := dirInfo.szFileName;
 {$ENDIF}
   repeat
-    Result := EDS_ERR_OK;
     retry := False;
     if (OpMode and OPM_SILENT = 0) and
       (dirInfo^.isFolder <> 0) and not delallfolder then
     begin
-      Result := EdsGetChildCount(dirItem, count);
+      CheckEdsError(EdsGetChildCount(dirItem, count));
       if count <> 0 then
       begin
         MessStr := GetMsgStr(MFolderDeleted) + #10 + FileName;
@@ -914,51 +862,36 @@ begin
           //0: ; // delete
           1: delallfolder := True; // all
           2: Exit;
-          3:
-          begin
-            Result := EDS_ERR_OPERATION_CANCELLED; //cancel
-            Exit;
-          end;
+          3: raise Exception.CreateCustom(EDS_ERR_OPERATION_CANCELLED, '');
         end;
       end;
     end;
-    if Result = EDS_ERR_OK then
+    if EdsDeleteDirectoryItem(dirItem) = EDS_ERR_OK then
+      FFindDataItemArray[FCurFindDataItem].DeleteItem(PFarChar(FileName))
+    else
     begin
-      Result := EdsDeleteDirectoryItem(dirItem);
-      if Result = EDS_ERR_OK then
-        FFindDataItemArray[FCurFindDataItem].DeleteItem(PFarChar(FileName))
-      else
+      if not skipall then
       begin
-        if skipall then
-          Result := EDS_ERR_OK
+        if dirInfo^.isFolder <> 0 then
+          text := GetMsg(MCannotDelFolder)
         else
-        begin
-          if dirInfo^.isFolder <> 0 then
-            text := GetMsg(MCannotDelFolder)
-          else
-            text := GetMsg(MCannotDelFile);
+          text := GetMsg(MCannotDelFile);
 {$IFDEF UNICODE}
-          MessStr := Format(text, [CharToWideChar(dirInfo^.szFileName)]);
+        MessStr := Format(text, [CharToWideChar(dirInfo^.szFileName)]);
 {$ELSE}
-          MessStr := Format(text, [dirInfo^.szFileName]);
+        MessStr := Format(text, [dirInfo^.szFileName]);
 {$ENDIF}
-          case ShowMessage(GetMsg(MError), PFarChar(MessStr),
-              [GetMsg(MBtnRetry), GetMsg(MBtnSkip), GetMsg(MBtnSkipAll),
-                GetMsg(MBtnCancel)],
-              FMSG_WARNING) of
-            0: // Retry
-            begin
-              Result := EDS_ERR_OK;
-              retry := True;
-            end;
-            1: Result := EDS_ERR_OK; // Skip
-            2: // SkipAll
-            begin
-              Result := EDS_ERR_OK;
-              skipall := True;
-            end;
-            3: ; // Cancel
-          end;
+        case ShowMessage(GetMsg(MError), PFarChar(MessStr),
+            [GetMsg(MBtnRetry), GetMsg(MBtnSkip), GetMsg(MBtnSkipAll),
+              GetMsg(MBtnCancel)],
+            FMSG_WARNING) of
+          0: // Retry
+            retry := True;
+          // 1: // Skip
+          2: // SkipAll
+            skipall := True;
+          3: // Cancel
+            raise Exception.CreateCustom(EDS_ERR_OPERATION_CANCELLED, '');
         end;
       end;
     end;
@@ -984,16 +917,14 @@ begin
     with FindDataItem do
     begin
       ItemsNumber := count;
-      for i := 0 to count - 1 do
-      begin
-        camera := nil;
-        EdsGetChildAtIndex(cameraList, i, camera);
-        if Assigned(camera) then
+      try
+        for i := 0 to count - 1 do
         begin
+          camera := nil;
+          CheckEdsError(EdsGetChildAtIndex(cameraList, i, camera));
           CheckEdsError(EdsGetDeviceInfo(camera, deviceInfo));
           with TPluginPanelItemArray(PanelItem)[i] do
           begin
-            //Flags := PPIF_USERDATA;
             SetFindDataName(FindData, deviceInfo.szDeviceDescription);
             FindData.dwFileAttributes := FILE_ATTRIBUTE_DIRECTORY;
             GetMem(PanelUserData, SizeOf(TPanelUserData));
@@ -1002,12 +933,15 @@ begin
             UserData := Cardinal(PanelUserData);
           end;
         end;
+      except
+        ClearItems;
+        raise;
       end;
     end
 end;
 
-function TCanon.GetDirectoryInfo(aParentData: PPanelUserData;
-  var FindDataItem: TFindDataItem; getDateTime: Boolean): Boolean;
+procedure TCanon.GetDirectoryInfo(aParentData: PPanelUserData;
+  var FindDataItem: TFindDataItem; getDateTime: Boolean);
 var
   dirItem: EdsDirectoryItemRef;
   dirItem1: EdsDirectoryItemRef;
@@ -1016,7 +950,6 @@ var
   fileAttr: EdsFileAttributes;
 
   count: EdsUInt32;
-  edserr: EdsError;
 
   stream: EdsStreamRef;
 
@@ -1025,17 +958,15 @@ var
   PanelUserData: PPanelUserData;
   FInterruptTitle, FInterruptText: PFarChar;
 begin
-  Result := False;
   stream := nil;
   with FindDataItem do
   begin
     ParentData := aParentData;
-    edserr := EdsGetChildCount(ParentData^.BaseRef, count);
-    if edserr = EDS_ERR_OK then
+    CheckEdsError(EdsGetChildCount(ParentData^.BaseRef, count));
+    if count > 0 then
     begin
-      if count > 0 then
-      begin
-        ItemsNumber := count;
+      ItemsNumber := count;
+      try
         if getDateTime and (count > 10) then
         begin
           if FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_GETCONFIRMATIONS, nil) and
@@ -1057,67 +988,53 @@ begin
         try
           for i := 0 to count - 1 do
           begin
-            EdsGetChildAtIndex(ParentData^.BaseRef, i, dirItem);
-            if Assigned(dirItem) then
+            CheckEdsError(EdsGetChildAtIndex(ParentData^.BaseRef, i, dirItem));
+            CheckEdsError(EdsGetDirectoryItemInfo(dirItem, dirItemInfo));
+            with TPluginPanelItemArray(PanelItem)[i] do
             begin
-              edserr := EdsGetDirectoryItemInfo(dirItem, dirItemInfo);
-              if edserr = EDS_ERR_OK then
-                with TPluginPanelItemArray(PanelItem)[i] do
+              SetFindDataName(FindData, dirItemInfo.szFileName);
+              if dirItemInfo.isFolder <> 0 then
+              begin
+                FindData.dwFileAttributes := FILE_ATTRIBUTE_DIRECTORY;
+              end
+              else
+              begin
+  {$IFDEF UNICODE}
+                FindData.nFileSize := dirItemInfo.size;
+  {$ELSE}
+                // FindData.nFileSizeHigh := 0;
+                FindData.nFileSizeLow := dirItemInfo.size;
+  {$ENDIF}
+                if getDateTime then
                 begin
-                  //Flags := PPIF_USERDATA;
-                  SetFindDataName(FindData, dirItemInfo.szFileName);
-                  if dirItemInfo.isFolder <> 0 then
-                  begin
-                    FindData.dwFileAttributes := FILE_ATTRIBUTE_DIRECTORY;
-                  end
+                  if Assigned(stream) then
+                    CheckEdsError(EdsSeek(stream, 0, kEdsSeek_Begin))
                   else
-                  begin
-{$IFDEF UNICODE}
-                    FindData.nFileSize := dirItemInfo.size;
-{$ELSE}
-                    // FindData.nFileSizeHigh := 0;
-                    FindData.nFileSizeLow := dirItemInfo.size;
-{$ENDIF}
-                    if getDateTime then
-                    begin
-                      if Assigned(stream) then
-                        edserr := EdsSeek(stream, 0, kEdsSeek_Begin)
-                      else
-                        edserr := EdsCreateMemoryStream(0, stream);
-                      if edserr = EDS_ERR_OK then
-                      begin
-                        edserr := GetImageDate(stream, dirItem,
-                          FindData.ftCreationTime);
-                        if edserr = EDS_ERR_OK then
-                        begin
-                          FindData.ftLastAccessTime := FindData.ftCreationTime;
-                          FindData.ftLastWriteTime := FindData.ftCreationTime;
-                        end;
-                      end;
-                    end;
-                  end;
-                  dirItem1 := dirItem;
-                  edserr := EdsGetAttribute(dirItem1, fileAttr);
-                  if edserr = EDS_ERR_OK then
-                  with FindData do
-                  begin
-                    if Ord(fileAttr) and Ord(kEdsFileAttribute_Normal) <> 0 then
-                      dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_NORMAL;
-                    if Ord(fileAttr) and Ord(kEdsFileAttribute_ReadOnly) <> 0 then
-                      dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_READONLY;
-                    if Ord(fileAttr) and Ord(kEdsFileAttribute_Hidden) <> 0 then
-                      dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_HIDDEN;
-                    if Ord(fileAttr) and Ord(kEdsFileAttribute_System) <> 0 then
-                      dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_SYSTEM;
-                    if Ord(fileAttr) and Ord(kEdsFileAttribute_Archive) <> 0 then
-                      dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_ARCHIVE;
-                  end;
-                  GetMem(PanelUserData, SizeOf(TPanelUserData));
-                  PanelUserData^.BaseRef := dirItem;
-                  PanelUserData^.BaseRefType := brtDirItem;
-                  UserData := Cardinal(PanelUserData);
-                  Result := True;
+                    CheckEdsError(EdsCreateMemoryStream(0, stream));
+                  GetImageDate(stream, dirItem, FindData.ftCreationTime);
+                  FindData.ftLastAccessTime := FindData.ftCreationTime;
+                  FindData.ftLastWriteTime := FindData.ftCreationTime;
                 end;
+              end;
+              dirItem1 := dirItem;
+              CheckEdsError(EdsGetAttribute(dirItem1, fileAttr));
+              with FindData do
+              begin
+                if Ord(fileAttr) and Ord(kEdsFileAttribute_Normal) <> 0 then
+                  dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_NORMAL;
+                if Ord(fileAttr) and Ord(kEdsFileAttribute_ReadOnly) <> 0 then
+                  dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_READONLY;
+                if Ord(fileAttr) and Ord(kEdsFileAttribute_Hidden) <> 0 then
+                  dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_HIDDEN;
+                if Ord(fileAttr) and Ord(kEdsFileAttribute_System) <> 0 then
+                  dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_SYSTEM;
+                if Ord(fileAttr) and Ord(kEdsFileAttribute_Archive) <> 0 then
+                  dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_ARCHIVE;
+              end;
+              GetMem(PanelUserData, SizeOf(TPanelUserData));
+              PanelUserData^.BaseRef := dirItem;
+              PanelUserData^.BaseRefType := brtDirItem;
+              UserData := Cardinal(PanelUserData);
             end;
             if Assigned(ProgressBar) and not ProgressBar.UpdateProgress(i + 1) then
               Break;
@@ -1128,60 +1045,51 @@ begin
           if Assigned(ProgressBar) then
             ProgressBar.Free;
         end;
-      end
-      else
-        Result := True;
-    end
-    else
-      ShowEdSdkError(edserr);
+      except
+        ClearItems;
+        raise;
+      end;
+    end;
   end;
 end;
 
-function TCanon.GetVolumeInfo(aParentData: PPanelUserData;
-  var FindDataItem: TFindDataItem): Boolean;
+procedure TCanon.GetVolumeInfo(aParentData: PPanelUserData;
+  var FindDataItem: TFindDataItem);
 var
   volume: EdsVolumeRef;
   volumeInfo: EdsVolumeInfo;
   count: EdsUInt32;
-  edserr: EdsError;
   i: Integer;
   PanelUserData: PPanelUserData;
 begin
-  Result := False;
   with FindDataItem do
   begin
     ParentData := aParentData;
-    edserr := EdsGetChildCount(ParentData^.BaseRef, count);
-    if edserr = EDS_ERR_OK  then
-      if count > 0 then
-      begin
-        ItemsNumber := count;
+    CheckEdsError(EdsGetChildCount(ParentData^.BaseRef, count));
+    if count > 0 then
+    begin
+      ItemsNumber := count;
+      try
         for i := 0 to count - 1 do
         begin
           volume := nil;
-          EdsGetChildAtIndex(ParentData^.BaseRef, i, volume);
-          if Assigned(volume) then
+          CheckEdsError(EdsGetChildAtIndex(ParentData^.BaseRef, i, volume));
+          CheckEdsError(EdsGetVolumeInfo(volume, volumeInfo));
+          with TPluginPanelItemArray(PanelItem)[i] do
           begin
-            edserr := EdsGetVolumeInfo(volume, volumeInfo);
-            if edserr = EDS_ERR_OK then
-            begin
-              with TPluginPanelItemArray(PanelItem)[i] do
-              begin
-                //Flags := PPIF_USERDATA;
-                SetFindDataName(FindData, volumeInfo.szVolumeLabel);
-                FindData.dwFileAttributes := FILE_ATTRIBUTE_DIRECTORY;
-                GetMem(PanelUserData, SizeOf(TPanelUserData));
-                PanelUserData^.BaseRef := volume;
-                PanelUserData^.BaseRefType := brtVolume;
-                UserData := Cardinal(PanelUserData);
-                Result := True;
-              end;
-            end;
+            SetFindDataName(FindData, volumeInfo.szVolumeLabel);
+            FindData.dwFileAttributes := FILE_ATTRIBUTE_DIRECTORY;
+            GetMem(PanelUserData, SizeOf(TPanelUserData));
+            PanelUserData^.BaseRef := volume;
+            PanelUserData^.BaseRefType := brtVolume;
+            UserData := Cardinal(PanelUserData);
           end;
         end;
-      end
-      else
-        Result := True;
+      except
+        ClearItems;
+        raise;
+      end;
+    end;
   end;
 end;
 
@@ -1331,7 +1239,6 @@ function TCanon.SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
   var
     i, CurFindDataItem: Integer;
     UserData: PPanelUserData;
-    edserr: EdsError;
     volumeInfo: EdsVolumeInfo;
   begin
     Result := False;
@@ -1350,7 +1257,6 @@ function TCanon.SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
       end;
     if Assigned(UserData) then
     begin
-      edserr := EDS_ERR_OK;
       for i := NewFindDataItem + 1 to Length(FFindDataItemArray) - 1 do
         if UserData^.BaseRef = FFindDataItemArray[i].ParentData^.BaseRef then
         begin
@@ -1363,16 +1269,14 @@ function TCanon.SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
         CurFindDataItem := Length(FFindDataItemArray);
         SetLength(FFindDataItemArray, CurFindDataItem + 1);
         FFindDataItemArray[CurFindDataItem] := TFindDataItem.Create;
-        case UserData^.BaseRefType of
-          brtCamera:
-          begin
-            Result := True;
-            if GetCurrentSession <> UserData^.BaseRef then
+        try
+          case UserData^.BaseRefType of
+            brtCamera:
             begin
-              CloseSession;
-              Result := OpenSession(UserData^.BaseRef);
-              if Result then
+              if GetCurrentSession <> UserData^.BaseRef then
               begin
+                CloseSession;
+                OpenSession(UserData^.BaseRef);
                 with FCameraInfo do
                 begin
                   CameraName := NewDir;
@@ -1386,55 +1290,49 @@ function TCanon.SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
                     kEdsPropID_BatteryQuality, @FormatBatteryQuality);
                 end;
               end;
-            end
-            else
-              edserr := EDS_ERR_OK;
-            if Result and (edserr = EDS_ERR_OK) then
-              Result := GetVolumeInfo(UserData, FFindDataItemArray[CurFindDataItem]);
-          end;
-          brtVolume:
-          with FVolumeInfo do
-          begin
-            if EdsGetVolumeInfo(UserData^.BaseRef, volumeInfo) = EDS_ERR_OK then
-            begin
-              VolumeName := NewDir;
-              case volumeInfo.storageType of
-                0: StorageType := GetMsgStr(MNoCard);
-                1: StorageType := GetMsgStr(M_CF);
-                2: StorageType := GetMsgStr(M_SD);
-                else StorageType := '';
-              end;
-              case volumeInfo.access of
-                0: Access := GetMsgStr(MReadOnly);
-                1: Access := GetMsgStr(MWriteOnly);
-                2: Access := GetMsgStr(MReadWrite);
-                $FFFFFFFF: Access := GetMsgStr(MAccessError);
-                else Access := '';
-              end;
-              MaxCapacity := FormatFileSize(volumeInfo.maxCapacity);
-              FreeSpace := FormatFileSize(volumeInfo.freeSpaceInBytes);
-            end
-            else
-            begin
-              VolumeName := '';
-              StorageType := '';
-              Access := '';
-              MaxCapacity := '';
-              FreeSpace := '';
+              GetVolumeInfo(UserData, FFindDataItemArray[CurFindDataItem]);
             end;
-            Result := GetDirectoryInfo(UserData, FFindDataItemArray[CurFindDataItem],
-              True);
+            brtVolume:
+            with FVolumeInfo do
+            begin
+              if EdsGetVolumeInfo(UserData^.BaseRef, volumeInfo) = EDS_ERR_OK then
+              begin
+                VolumeName := NewDir;
+                case volumeInfo.storageType of
+                  0: StorageType := GetMsgStr(MNoCard);
+                  1: StorageType := GetMsgStr(M_CF);
+                  2: StorageType := GetMsgStr(M_SD);
+                  else StorageType := '';
+                end;
+                case volumeInfo.access of
+                  0: Access := GetMsgStr(MReadOnly);
+                  1: Access := GetMsgStr(MWriteOnly);
+                  2: Access := GetMsgStr(MReadWrite);
+                  $FFFFFFFF: Access := GetMsgStr(MAccessError);
+                  else Access := '';
+                end;
+                MaxCapacity := FormatFileSize(volumeInfo.maxCapacity);
+                FreeSpace := FormatFileSize(volumeInfo.freeSpaceInBytes);
+              end
+              else
+              begin
+                VolumeName := '';
+                StorageType := '';
+                Access := '';
+                MaxCapacity := '';
+                FreeSpace := '';
+              end;
+              GetDirectoryInfo(UserData, FFindDataItemArray[CurFindDataItem], True);
+            end;
+            brtDirItem:
+              GetDirectoryInfo(UserData, FFindDataItemArray[CurFindDataItem], True);
           end;
-          brtDirItem:
-            Result := GetDirectoryInfo(UserData, FFindDataItemArray[CurFindDataItem],
-              True);
-        end;
-        if Result then
-          NewFindDataItem := CurFindDataItem
-        else
-        begin
+          NewFindDataItem := CurFindDataItem;
+          Result := True;
+        except
           FFindDataItemArray[CurFindDataItem].Free;
           SetLength(FFindDataItemArray, CurFindDataItem);
+          raise;
         end;
       end;
       if Result then
@@ -1442,9 +1340,7 @@ function TCanon.SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
         if NewDirectory <> '' then
           NewDirectory := NewDirectory + cDelim;
         NewDirectory := NewDirectory + NewDir;
-      end
-      else
-        ShowEdSdkError(edserr);
+      end;
     end;
   end;
   function ChDirUp(var NewFindDataItem: Integer;
@@ -1596,20 +1492,16 @@ var
   CurrentSession: EdsBaseRef;
 
 class procedure TCanon.LoadLib(const FileName: TFarString);
-var
-  edserr: EdsError;
 begin
   if not IsConnect then
   begin
 {$IFDEF USE_DYNLOAD}
     if not InitEDSDK(PFarChar(FileName)) then
-      raise Exception.Create(err.e_Abort, GetMsg(MLibNotFound));
+      raise Exception.CreateCustom(EDS_ERR_OK,
+        GetMsgStr(MInitError) + #10 + GetMsg(MLibNotFound));
 {$ENDIF}
-    edserr := EdsInitializeSDK;
-    if edserr <> EDS_ERR_OK then
-      raise Exception.Create(err.e_Abort, GetEdSdkError(edserr))
-    else
-      IsConnect := True;
+    CheckEdsError(EdsInitializeSDK);
+    IsConnect := True;
   end;
   Inc(_RefCount);
 end;
@@ -1642,30 +1534,20 @@ begin
   end;
 end;
 
-class function TCanon.OpenSession(session: EdsBaseRef): Boolean;
-var
-  edserr: EdsError;
+class procedure TCanon.OpenSession(session: EdsBaseRef);
 begin
   if Assigned(CurrentSession) then
   begin
-    Result := (CurrentSession = session);
-    if Result then
+    if CurrentSession = session then
       Inc(_SessionRefCount)
     else
-      ShowMessage(GetMsg(MError), GetMsg(MOneSessionAllowed),
-        FMSG_WARNING + FMSG_MB_OK);
+      raise Exception.CreateCustom(EDS_ERR_OK, GetMsgStr(MOneSessionAllowed));
   end
   else
   begin
-    edserr := EdsOpenSession(session);
-    Result := edserr = EDS_ERR_OK;
-    if Result then
-    begin
-      CurrentSession := session;
-      Inc(_SessionRefCount);
-    end
-    else
-      ShowEdSdkError(edserr);
+    CheckEdsError(EdsOpenSession(session));
+    CurrentSession := session;
+    Inc(_SessionRefCount);
   end;
 end;
 
@@ -1708,6 +1590,22 @@ begin
 end;
 
 destructor TFindDataItem.Destroy;
+begin
+  ClearItems;
+  inherited;
+end;
+
+procedure TFindDataItem.SetItemsNumber(const Value: Integer);
+begin
+{$IFDEF OUT_LOG}
+  WriteLn(LogFile, 'GetFreeFindDataItem');
+{$ENDIF}
+  FItemsNumber := Value;
+  GetMem(FPanelItem, FItemsNumber * SizeOf(TPluginPanelItem));
+  ZeroMemory(FPanelItem, FItemsNumber * SizeOf(TPluginPanelItem));
+end;
+
+procedure TFindDataItem.ClearItems;
 var
   i: Integer;
   BaseRef: EdsBaseRef;
@@ -1727,21 +1625,11 @@ begin
       FreeMem(PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData));
     end;
     FreeMem(PanelItem);
+    FItemsNumber := 0;
   end;
 {$IFDEF OUT_LOG}
   WriteLn(LogFile, 'FreeFindDataItem');
 {$ENDIF}
-  inherited;
-end;
-
-procedure TFindDataItem.SetItemsNumber(const Value: Integer);
-begin
-{$IFDEF OUT_LOG}
-  WriteLn(LogFile, 'GetFreeFindDataItem');
-{$ENDIF}
-  FItemsNumber := Value;
-  GetMem(FPanelItem, FItemsNumber * SizeOf(TPluginPanelItem));
-  ZeroMemory(FPanelItem, FItemsNumber * SizeOf(TPluginPanelItem));
 end;
 
 initialization

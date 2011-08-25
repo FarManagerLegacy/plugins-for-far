@@ -183,17 +183,17 @@ type
     FOnDestroy: TDestroyException;
     procedure SetData(const Value: Pointer);
   public
-    constructor Create(ACode: TError; const Msg: string);
+    constructor Create(ACode: TError; const Msg: KOLString);
     {* Use this constructor to raise exception, which does not require of
        argument formatting. }
-    constructor CreateFmt(ACode: TError; const Msg: string; const Args: array of const);
+    constructor CreateFmt(ACode: TError; const Msg: KOLString; const Args: array of const);
     {* Use this constructor to raise an exception with formatted Message string.
        Take into attention, that Format procedure defined in KOL, uses API wvsprintf
        function, which can understand a restricted set of format specifications. }
-    constructor CreateCustom(AError: DWORD; const Msg: String);
+    constructor CreateCustom(AError: DWORD; const Msg: KOLString);
     {* Use this constructor to create e_Custom exception and to assign AError to
        its ErrorCode property. }
-    constructor CreateCustomFmt(AError: DWORD; const Msg: String; const Args: array of const);
+    constructor CreateCustomFmt(AError: DWORD; const Msg: KOLString; const Args: array of const);
     {* Use this constructor to create e_Custom exception with formatted message
        string and to assign AError to its ErrorCode property. }
     constructor CreateResFmt(ACode: TError; Ident: Integer; const Args: array of const);
@@ -253,7 +253,7 @@ procedure AddExitProc(Proc: TProcedure);
 
 { System error messages }
 
-function SysErrorMessage(ErrorCode: Integer): string;
+function SysErrorMessage(ErrorCode: Integer): KOLString;
 
 { Exception handling routines }
 
@@ -385,7 +385,7 @@ end;
 
 { System error messages }
 
-function SysErrorMessage(ErrorCode: Integer): string;
+function SysErrorMessage(ErrorCode: Integer): KOLString;
 var
   Len: Integer;
   Buffer: array[0..255] of KOLChar;
@@ -492,7 +492,7 @@ end;
 {$ENDIF}
 
 {$IFDEF _D2}
-function LoadStr(Ident: Integer): string;
+function LoadStr(Ident: Integer): KOLString;
 var
   Buffer: array[0..1023] of Char;
 begin
@@ -500,7 +500,7 @@ begin
     SizeOf(Buffer)));
 end;
 {$ELSE}
-function LoadStr(Ident: Integer): string;
+function LoadStr(Ident: Integer): KOLString;
 var
   Buffer: array[0..1023] of KOLChar;
 begin
@@ -508,7 +508,7 @@ begin
 end;
 {$ENDIF}
 
-function FmtLoadStr(Ident: Integer; const Args: array of const): string;
+function FmtLoadStr(Ident: Integer; const Args: array of const): KOLString;
 begin
   //FmtStr(Result, LoadStr(Ident), Args);
   Result := Format(LoadStr(Ident), Args);
@@ -620,21 +620,21 @@ begin
   FData := Value;
 end;
 
-constructor Exception.Create(ACode: TError; const Msg: string);
+constructor Exception.Create(ACode: TError; const Msg: KOLString);
 begin
   FCode := ACode;
   FMessage := Msg;
   //FAllowFree := TRUE;
 end;
 
-constructor Exception.CreateCustom(AError: DWORD; const Msg: String);
+constructor Exception.CreateCustom(AError: DWORD; const Msg: KOLString);
 begin
   FCode := e_Custom;
   FMessage := Msg;
   FErrorCode := AError;
 end;
 
-constructor Exception.CreateCustomFmt(AError: DWORD; const Msg: String;
+constructor Exception.CreateCustomFmt(AError: DWORD; const Msg: KOLString;
   const Args: array of const);
 begin
   FCode := e_Custom;
@@ -642,7 +642,7 @@ begin
   FMessage := Format(Msg, Args);
 end;
 
-constructor Exception.CreateFmt(ACode: TError; const Msg: string;
+constructor Exception.CreateFmt(ACode: TError; const Msg: KOLString;
   const Args: array of const);
 begin
   FCode := ACode;
@@ -663,7 +663,7 @@ function CreateInOutError: Exception;
 type
   TErrorRec = record
     Code: Integer;
-    Ident: string;
+    Ident: KOLString;
   end;
 const
   ErrorMap: array[0..5] of TErrorRec = (
@@ -694,7 +694,7 @@ end;
 type
   TExceptMapRec = packed record
     ECode: TError;
-    EIdent: String;
+    EIdent: KOLString;
   end;
 
 const
@@ -765,10 +765,10 @@ end;
 { routine RaiseAssertException sets up the registers just as if the user   }
 { code itself had raised the exception.                                    }
 
-function CreateAssertException(const Message, Filename: string;
+function CreateAssertException(const Message, Filename: KOLString;
   LineNumber: Integer): Exception;
 var
-  S: string;
+  S: KOLString;
 begin
   if Message <> '' then S := Message else S := SAssertionFailed;
   Result := Exception.CreateFmt(e_Assertion, SAssertError,
@@ -790,7 +790,7 @@ end;
 { If you change this procedure, make sure it does not have any local variables }
 { or temps that need cleanup - they won't get cleaned up due to the way        }
 { RaiseAssertException frame works. Also, it can not have an exception frame.  }
-procedure AssertErrorHandler(const Message, Filename: string;
+procedure AssertErrorHandler(const Message, Filename: KOLString;
   LineNumber: Integer; ErrorAddr: Pointer);
 var
   E: Exception;
@@ -891,7 +891,7 @@ var
 
   function CreateAVObject: Exception;
   var
-    AccessOp: string; // string ID indicating the access type READ or WRITE
+    AccessOp: KOLString; // string ID indicating the access type READ or WRITE
     AccessAddress: Pointer;
     MemInfo: TMemoryBasicInformation;
     ModName: array[0..MAX_PATH] of KOLChar;

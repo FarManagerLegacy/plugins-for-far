@@ -26,7 +26,8 @@ not to like it. They are following:
 from which a large extent taken this help file.
 
  See also:
-  ~Working with shortcuts list~@DirectoryHotlist@
+    ~Working with shortcuts list~@DirectoryHotlist@
+    ~About...~@About@
 
 @Comments
 $ #Meaningful remarks#
@@ -72,3 +73,17 @@ $ #Group creating and editing#
 $ #Shortcut and group moving#
     To move shortcut or group enter the target group and press #F10#. To
 cancel press #Esc#.
+
+@About
+$^#About
+
+  Far Manager plugin module #Directory Hotlist#
+  Version ${Version} by ${CompileDate} for Far Manager ${FarVersion}
+
+  2010-2011, Andrew V. Andreenkov
+  ~andreenkov@@gmail.com~@mailto:andreenkov@@gmail.com?Subject=Directory Hotlist Plugin@
+
+  In developing the program used the following modules and libraries:
+
+  1. KEY OBJECTS LIBRARY for Delphi, (c) Vladimir Kladov, 1999-2006.
+     ~http://kolmck.net/~@http://kolmck.net/@
