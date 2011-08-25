@@ -943,8 +943,7 @@ end;
 procedure TCanon.GetDirectoryInfo(aParentData: PPanelUserData;
   var FindDataItem: TFindDataItem; getDateTime: Boolean);
 var
-  dirItem: EdsDirectoryItemRef;
-  dirItem1: EdsDirectoryItemRef;
+  dirItem, dirItem1: EdsDirectoryItemRef;
   dirItemInfo: EdsDirectoryItemInfo;
 
   fileAttr: EdsFileAttributes;
@@ -994,17 +993,15 @@ begin
             begin
               SetFindDataName(FindData, dirItemInfo.szFileName);
               if dirItemInfo.isFolder <> 0 then
-              begin
-                FindData.dwFileAttributes := FILE_ATTRIBUTE_DIRECTORY;
-              end
+                FindData.dwFileAttributes := FILE_ATTRIBUTE_DIRECTORY
               else
               begin
-  {$IFDEF UNICODE}
+{$IFDEF UNICODE}
                 FindData.nFileSize := dirItemInfo.size;
-  {$ELSE}
+{$ELSE}
                 // FindData.nFileSizeHigh := 0;
                 FindData.nFileSizeLow := dirItemInfo.size;
-  {$ENDIF}
+{$ENDIF}
                 if getDateTime then
                 begin
                   if Assigned(stream) then
@@ -1015,21 +1012,22 @@ begin
                   FindData.ftLastAccessTime := FindData.ftCreationTime;
                   FindData.ftLastWriteTime := FindData.ftCreationTime;
                 end;
-              end;
-              dirItem1 := dirItem;
-              CheckEdsError(EdsGetAttribute(dirItem1, fileAttr));
-              with FindData do
-              begin
-                if Ord(fileAttr) and Ord(kEdsFileAttribute_Normal) <> 0 then
-                  dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_NORMAL;
-                if Ord(fileAttr) and Ord(kEdsFileAttribute_ReadOnly) <> 0 then
-                  dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_READONLY;
-                if Ord(fileAttr) and Ord(kEdsFileAttribute_Hidden) <> 0 then
-                  dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_HIDDEN;
-                if Ord(fileAttr) and Ord(kEdsFileAttribute_System) <> 0 then
-                  dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_SYSTEM;
-                if Ord(fileAttr) and Ord(kEdsFileAttribute_Archive) <> 0 then
-                  dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_ARCHIVE;
+                dirItem1 := dirItem;
+                // ѕочему то портитс€ содержимое 1-го параметра
+                CheckEdsError(EdsGetAttribute(dirItem1, fileAttr));
+                with FindData do
+                begin
+                  if Ord(fileAttr) and Ord(kEdsFileAttribute_Normal) <> 0 then
+                    dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_NORMAL;
+                  if Ord(fileAttr) and Ord(kEdsFileAttribute_ReadOnly) <> 0 then
+                    dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_READONLY;
+                  if Ord(fileAttr) and Ord(kEdsFileAttribute_Hidden) <> 0 then
+                    dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_HIDDEN;
+                  if Ord(fileAttr) and Ord(kEdsFileAttribute_System) <> 0 then
+                    dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_SYSTEM;
+                  if Ord(fileAttr) and Ord(kEdsFileAttribute_Archive) <> 0 then
+                    dwFileAttributes := dwFileAttributes or FILE_ATTRIBUTE_ARCHIVE;
+                end;
               end;
               GetMem(PanelUserData, SizeOf(TPanelUserData));
               PanelUserData^.BaseRef := dirItem;
@@ -1183,8 +1181,8 @@ function TCanon.SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
     datatype, size: EdsUInt32;
   begin
     Result := '';
+    if EdsGetPropertySize(camera, PropertyId, 0, datatype, size) = EDS_ERR_OK then
     try
-      CheckEdsError(EdsGetPropertySize(camera, PropertyId, 0, datatype, size));
       if EdsEnumDataType(datatype) = kEdsDataType_String then
       begin
         p := @str;
@@ -1232,7 +1230,9 @@ function TCanon.SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
       end;
     except
       Result := GetMsgStr(MPropertyUnavailable);
-    end;
+    end
+    else
+      Result := GetMsgStr(MPropertyUnavailable);
   end;
   function ChDirDown(NewDir: PFarChar; var NewFindDataItem: Integer;
     var NewDirectory: TFarString): Boolean;
@@ -1614,15 +1614,18 @@ begin
   begin
     for i := 0 to ItemsNumber - 1 do
     begin
-      BaseRef := PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData)^.BaseRef;
-      if BaseRef = TCanon.GetCurrentSession then
-        TCanon.CloseSession;
-      EdsRelease(BaseRef);
+      if TPluginPanelItemArray(PanelItem)[i].UserData <> 0 then
+      begin
+        BaseRef := PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData)^.BaseRef;
+        if BaseRef = TCanon.GetCurrentSession then
+          TCanon.CloseSession;
+        EdsRelease(BaseRef);
+        FreeMem(PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData));
+      end;
 {$IFDEF UNICODE}
       if Assigned(TPluginPanelItemArray(PanelItem)[i].FindData.cFileName) then
         FreeMem(TPluginPanelItemArray(PanelItem)[i].FindData.cFileName);
 {$ENDIF}
-      FreeMem(PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData));
     end;
     FreeMem(PanelItem);
     FItemsNumber := 0;
