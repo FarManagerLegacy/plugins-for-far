@@ -51,14 +51,17 @@ type
 
   TConfigData = record
     AddToDiskMenu: Boolean;
+{$IFNDEF UNICODE}
     DiskMenuNumberStr: TFarString;
     DiskMenuNumber: Integer;
+{$ENDIF}
     Prefix: TFarString;
     LibraryPath: TFarString;
   end;
 
 procedure LoadConfig;
 procedure SaveConfig;
+procedure ShowError(ErrorCode: EdsError; const ErrorMessage: TFarString);
 procedure ShowEdSdkError(ErrorCode: EdsError);
 
 var
@@ -68,6 +71,15 @@ implementation
 
 uses
   UCanon;
+
+procedure ShowError(ErrorCode: EdsError; const ErrorMessage: TFarString);
+begin
+  if ErrorCode <> EDS_ERR_OK then
+    ShowEdSdkError(ErrorCode)
+  else if ErrorMessage <> '' then
+    ShowMessage(GetMsg(MError), PFarChar(ErrorMessage),
+      FMSG_WARNING + FMSG_MB_OK);
+end;
 
 procedure ShowEdSdkError(ErrorCode: EdsError);
 begin
@@ -196,7 +208,9 @@ const
   cEosPrefix = 'EOS';
   cEOSBrowser = 'EOSBrowser';
   cAddToDiskMenu = 'AddToDiskMenu';
+{$IFNDEF UNICODE}
   cDiskMenuNumber = 'DiskMenuNumber';
+{$ENDIF}
   cPrefix = 'Prefix';
   cLibraryPath = 'LibraryPath';
 
@@ -208,8 +222,10 @@ begin
   with ConfigData do
   begin
     AddToDiskMenu := ReadRegBoolValue(cAddToDiskMenu, SubKey, True);
+{$IFNDEF UNICODE}
     DiskMenuNumberStr := ReadRegStringValue(cDiskMenuNumber, SubKey, '0');
     DiskMenuNumber := FSF.atoi(PFarChar(DiskMenuNumberStr));
+{$ENDIF}
     Prefix := ReadRegStringValue(cPrefix, SubKey, cEosPrefix);
     LibraryPath := ReadRegStringValue(cLibraryPath, SubKey, '');
   end;
@@ -223,7 +239,9 @@ begin
   with ConfigData do
   begin
     WriteRegBoolValue(cAddToDiskMenu, SubKey, AddToDiskMenu);
+{$IFNDEF UNICODE}
     WriteRegStringValue(cDiskMenuNumber, SubKey, DiskMenuNumberStr);
+{$ENDIF}
     WriteRegStringValue(cPrefix, SubKey, Prefix);
     if LibraryPath <> '' then
       LibraryPath := IncludeTrailingPathDelimiter(LibraryPath);
@@ -234,9 +252,13 @@ end;
 constructor TConfigDlg.Create;
 const
   cSizeX = 74;
+{$IFDEF UNICODE}
+  cSizeY = 11;
+{$ELSE}
   cSizeY = 13;
-  cLeftSide = 5;
   cSharp: PFarChar = '#';
+{$ENDIF}
+  cLeftSide = 5;
 begin
   with ConfigData do
     inherited Create([
@@ -244,39 +266,50 @@ begin
         PFarChar(MConfigurationTitle)),
   {1} DlgItem(DI_CHECKBOX, cLeftSide, 2, cSizeX - cLeftSide * 2, -1, 0,
         PFarChar(MAddToDriveMenu), Pointer(AddToDiskMenu)),
+{$IFNDEF UNICODE}
   {2} DlgItem(DI_FIXEDIT, cLeftSide + 2, 3, 1, -1, DIF_MASKEDIT,
         PFarChar(DiskMenuNumberStr), cSharp),
   {3} DlgItem(DI_TEXT, cLeftSide + 4, 3, cSizeX - cLeftSide * 2 - 3, -1, 0,
         PFarChar(MDriveMenuHotkey)),
   {4} DlgItem(DI_TEXT, cLeftSide - 1, 4, -1, 0, DIF_SEPARATOR, ''),
-  {5} DlgItem(DI_TEXT, cLeftSide, 5, cSizeX - cLeftSide * 2 - 4, -1, 0,
+{$ENDIF}
+  {2-5} DlgItem(DI_TEXT, cLeftSide, cSizeY - 8, cSizeX - cLeftSide * 2 - 4, -1, 0,
         PFarChar(MCommandLinePrefix)),
-  {6} DlgItem(DI_EDIT, cLeftSide, 6, cSizeX - cLeftSide * 2, -1, 0,
+  {3-6} DlgItem(DI_EDIT, cLeftSide, cSizeY - 7, cSizeX - cLeftSide * 2, -1, 0,
         PFarChar(Prefix)),
-  {7} DlgItem(DI_TEXT, cLeftSide, 7, cSizeX - cLeftSide * 2 - 4, -1, 0,
+  {4-7} DlgItem(DI_TEXT, cLeftSide, cSizeY - 6, cSizeX - cLeftSide * 2 - 4, -1, 0,
         PFarChar(MLibraryPath)),
-  {8} DlgItem(DI_EDIT, cLeftSide, 8, cSizeX - cLeftSide * 2, -1, 
+  {5-8} DlgItem(DI_EDIT, cLeftSide, cSizeY - 5, cSizeX - cLeftSide * 2, -1,
         {$IFDEF UNICODE}DIF_EDITPATH{$ELSE}0{$ENDIF},
         PFarChar(LibraryPath)),
-  {9} DlgItem(DI_TEXT, cLeftSide - 1, cSizeY - 4, -1, 0, DIF_SEPARATOR, ''),
- {10} DlgItem(DI_BUTTON, 0, cSizeY - 3, 0, 0, DIF_CENTERGROUP,
+  {6-9} DlgItem(DI_TEXT, cLeftSide - 1, cSizeY - 4, -1, 0, DIF_SEPARATOR, ''),
+ {7-10} DlgItem(DI_BUTTON, 0, cSizeY - 3, 0, 0, DIF_CENTERGROUP,
         PFarChar(MBtnOk), Pointer(True)),
- {11} DlgItem(DI_BUTTON, 0, cSizeY - 3, 0, 0, DIF_CENTERGROUP,
+ {8-11} DlgItem(DI_BUTTON, 0, cSizeY - 3, 0, 0, DIF_CENTERGROUP,
         PFarChar(MBtnCancel))
       ], -1, -1, cSizeX, cSizeY, nil);
 end;
 
 function TConfigDlg.Execute: Integer;
 begin
+{$IFDEF UNICODE}
+  if inherited Execute = 7 then
+{$ELSE}
   if inherited Execute = 10 then
+{$ENDIF}
   begin
     with ConfigData do
     begin
       AddToDiskMenu := ItemCheckData[1];
+{$IFDEF UNICODE}
+      Prefix := ItemTextData[3];
+      LibraryPath := ItemTextData[5];
+{$ELSE}
       DiskMenuNumberStr := ItemTextData[2];
       DiskMenuNumber := FSF.atoi(PFarChar(DiskMenuNumberStr));
       Prefix := ItemTextData[6];
       LibraryPath := ItemTextData[8];
+{$ENDIF}
     end;
     SaveConfig;
     Result := 1;

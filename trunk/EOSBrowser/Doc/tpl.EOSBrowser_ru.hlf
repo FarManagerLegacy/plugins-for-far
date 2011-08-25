@@ -1,0 +1,59 @@
+﻿.Language=Russian,Russian (Русский)
+.PluginContents=EOS Browser
+
+@Contents
+$ #Что такое EOS Browser?#
+    #EOS Browser# предназначен для копирования файлов из цифровых 
+фотоаппаратов серии Canon EOS Digital. Для работы используется библиотека 
+Canon EOS Digital SDK. Плагин тестировался с SDK версии 2.10, работа с 
+другими версиями не гарантируется. Версия SDK 2.10 поддерживает 
+фотоаппараты:
+
+    #EOS-1D Mark III#
+    #EOS 40D#
+    #EOS-1Ds Mark III#
+    #EOS DIGITAL REBEL Xsi/450D/ Kiss X2#
+    #EOS DIGITAL REBEL XS/ 1000D/ KISS F#
+    #EOS 50D#
+    #EOS 5D Mark II#
+    #EOS Kiss X3/EOS REBEL T1i /EOS 500D#
+    #EOS 7D#
+    #EOS-1D Mark IV#
+    #EOS Kiss X4/EOS REBEL T2i /EOS 550D#
+    #EOS 60D#
+    #EOS Kiss X5/EOS REBEL T3i /EOS 600D#
+    #EOS Kiss X50/EOS REBEL T3 /EOS 1100D#
+
+    #EOS-1D Mark II#
+    #EOS 20D#
+    #EOS-1Ds Mark II#
+    #EOS Kiss Digital N/350D/REBEL XT#
+    #EOS 5D#
+    #EOS-1D Mark II N#
+    #EOS 30D#
+    #EOS Kiss Digital X/400D/REBEL Xti#
+
+    Плагин позволяет выполнять следующие операции:
+    1. Копирование файлов или каталогов из фотоаппарата.
+    2. Перенос файлов или каталогов из фотоаппарата.
+    3. Удаление файлов или каталогов из фотоаппарата.
+
+    Копирование файлов на фотоаппарат, создание каталогов не 
+поддерживается.
+
+ См. также:
+    ~О программе...~@About@
+
+@About
+$^#О программе
+
+  Плагин для Far Manager "EOS Browser"
+  Версия ${Version} от ${CompileDate} для Far Manager ${FarVersion}
+
+  2011, Andrew V. Andreenkov
+  ~andreenkov@@gmail.com~@mailto:andreenkov@@gmail.com?Subject=EOS Browser Plugin@
+
+  При разработке программы использовались следующие модули и библиотеки:
+
+  1. KEY OBJECTS LIBRARY for Delphi, (c) Vladimir Kladov, 1999-2006.
+     ~http://kolmck.net/~@http://kolmck.net/@

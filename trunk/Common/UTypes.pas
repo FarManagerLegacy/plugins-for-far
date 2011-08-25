@@ -17,7 +17,11 @@ var
 
 type
 {$IFDEF UNICODE}
-  TFarString = WideString;
+  {$IFDEF D12UP} // Delphi 2009+
+    TFarString = UnicodeString;
+  {$ELSE}
+    TFarString = WideString;
+  {$ENDIF}
 {$ELSE}
   TFarChar = AnsiChar;
   PFarChar = PAnsiChar;

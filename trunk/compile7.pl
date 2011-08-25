@@ -4,6 +4,7 @@ use strict;
 use Win32API::Registry 0.21 qw(:ALL);
 use Cwd qw(fast_abs_path);
 use File::Path qw(make_path);
+use ActiveState::DateTime qw(gmt_offset);
 
 my ($key, $type, $dcc, $root, $lib, $brc);
 (my $appname = fast_abs_path('.')) =~ s|^.*[\\/]||;
@@ -44,9 +45,17 @@ close CFG;
 
 make_path "..\\Bin\\$UStr[$Unicode]\\$appname", "..\\Dcu\\$UStr[$Unicode]\\$appname";
 
-my %subst = ( Version => '', FarVersion => '' );
+my %subst = ( Version => '', FarVersion => '', CompileDate => '');
 open(VERSION, '<', 'version.txt') and $subst{Version} = <VERSION>, close VERSION;
 $subst{FarVersion} = ('1.7x', '2')[$Unicode];
+$subst{CompileDate} = (sprintf '%02d.%02d.%04d', sub{($_[3], $_[4] + 1, $_[5] + 1900)}->(localtime));
+
+open DATETIME, '>', 'datetime.inc';
+print DATETIME "const\n";
+print DATETIME '  CompileTime = ', 25569 + (time + gmt_offset() / 100 * 60 * 60 ) / (60 * 60 * 24), ";\n";
+print DATETIME '  CompileDateStr = \'', $subst{CompileDate}, "';\n";
+print DATETIME '  CompileTimeStr = \'', (sprintf '%02d:%02d:%02d', (localtime)[2, 1, 0]), "';\n";
+close DATETIME;
 
 if ($subst{Version} and open(VERSION, '+<', 'versioninfo.rc')) {
   my @Version = split /\./, $subst{Version};

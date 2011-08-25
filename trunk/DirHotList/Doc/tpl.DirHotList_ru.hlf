@@ -27,7 +27,8 @@ $ #Что такое Directory Hotlist?#
 откуда в большой степени взят этот файл помощи.
 
  См. также:
-  ~Работа со списком ссылок и групп~@DirectoryHotlist@
+    ~Работа со списком ссылок и групп~@DirectoryHotlist@
+    ~О программе...~@About@
 
 @Comments
 $ #Осмысленные комментарии?#
@@ -74,3 +75,17 @@ $ #Создание и редактирование группы#
 $ #Перемещение ссылок и групп#
     Для перемещения ссылки или группы войдите в нужную группу и нажмите
 клавишу #F10#. Для отмены нажмите клавишу #Esc#.
+
+@About
+$^#О программе
+
+  Плагин для Far Manager #Directory Hotlist#
+  Версия ${Version} от ${CompileDate} для Far Manager ${FarVersion}
+
+  2010-2011, Andrew V. Andreenkov
+  ~andreenkov@@gmail.com~@mailto:andreenkov@@gmail.com?Subject=Directory Hotlist Plugin@
+
+  При разработке программы использовались следующие модули и библиотеки:
+
+  1. KEY OBJECTS LIBRARY for Delphi, (c) Vladimir Kladov, 1999-2006.
+     ~http://kolmck.net/~@http://kolmck.net/@
