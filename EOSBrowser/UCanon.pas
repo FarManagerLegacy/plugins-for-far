@@ -27,6 +27,7 @@ uses
   UUtils,
   UProgressBar,
   ULang,
+  UFileSystem,
   UEDialogs;
 
 type
@@ -38,22 +39,12 @@ type
     BaseRefType: TBaseRefType;
   end;
 
-  TFindDataItem = class
+  TCanonDirNode = class(TDirNode)
   private
     FParentData: PPanelUserData;
-    FPanelItem: PPluginPanelItem;
-    FItemsNumber: Integer;
-    procedure SetItemsNumber(const Value: Integer);
   public
-    constructor Create;
-    destructor Destroy; override;
-    procedure DeleteItem(Index: Integer); overload;
-    procedure DeleteItem(const FileName: PFarChar); overload;
-    procedure ClearItems;
-
-    property ParentData: PPanelUserData read FParentData write FParentData;
-    property PanelItem: PPluginPanelItem read FPanelItem;
-    property ItemsNumber: Integer read FItemsNumber write SetItemsNumber;
+    procedure FillPanelItem; override;
+    property ParentData: PPanelUserData read FParentData;
   end;
 
   TCameraInfo = record
@@ -83,16 +74,14 @@ type
     FPanelModesArray: array[0..9] of TPanelMode;
     FColumnTitles: array[0..0] of PFarChar;
 
-    FFindDataItemArray: array of TFindDataItem;
-    FCurFindDataItem: Integer;
+    FDirNode: TDirNode;
 
     FCameraInfo: TCameraInfo;
     FVolumeInfo: TVolumeInfo;
-
   private
     class procedure LoadLib(const FileName: TFarString);
     class procedure FreeLib;
-    class procedure OpenSession(session: EdsBaseRef);
+    class procedure OpenSession(session: EdsBaseRef; Sender: TCanon);
     class procedure CloseSession;
     class function GetCurrentSession: EdsBaseRef;
 
@@ -117,6 +106,7 @@ type
     procedure GetDirectoryInfo(aParentData: PPanelUserData;
       var FindDataItem: TFindDataItem; getDateTime: Boolean);
     procedure SetInfoLinesCount(Value: Integer);
+    procedure OnCameraDisconnect;
   public
     constructor Create(const FileName: TFarString);
     destructor Destroy; override;
@@ -143,6 +133,8 @@ procedure CheckEdsError(edserr: EdsError);
 implementation
 
 uses UDialogs;
+
+{ TFindDataItem }
 
 procedure GetImageDate(stream: EdsStreamRef; dirItem: EdsDirectoryItemRef;
   var FileTime: TFileTime);
@@ -193,6 +185,32 @@ begin
     raise Exception.CreateCustom(edserr, '');
 end;
 
+{ Callback Functions }
+
+type
+  PContextData = ^TContextData;
+  TContextData = record
+    FProgressBar: TProgressBar;
+    FText: TFarString;
+  end;
+
+function EdsProgressCallback(inPercent: EdsUInt32; inContext: Pointer;
+  var outCancel: EdsBool): EdsError; stdcall;
+begin
+  with PContextData(inContext)^ do
+    if not FProgressBar.UpdateProgress(inPercent, FText) then
+      Result := EDS_ERR_OPERATION_CANCELLED
+    else
+      Result := EDS_ERR_OK;
+end;
+
+function EdsStateEventHandler(inEvent: EdsStateEvent; inParamter: EdsUInt32;
+  inContext: EdsUInt32): EdsError; stdcall;
+begin
+  TCanon(inContext).OnCameraDisconnect;
+  Result := EDS_ERR_OK;
+end;
+
 { TCanon }
 
 type
@@ -212,6 +230,7 @@ begin
   end;
   FInfoLines := nil;
   FInfoLineCount := 0;
+  FDirNode := TCanonDirNode.Create;
   // FARAPI.Control(INVALID_HANDLE_VALUE, FCTL_GETPANELSHORTINFO, @FPanelInfo);
 end;
 
@@ -292,12 +311,8 @@ begin
     FreeMem(FInfoLines);
     FInfoLineCount := 0;
   end;
-  if Length(FFindDataItemArray) > 0 then
-  begin
-    for i := Length(FFindDataItemArray) - 1 downto 0 do
-      FFindDataItemArray[i].Free;
-    SetLength(FFindDataItemArray, 0);
-  end;
+  if Assigned(FDirNode) then
+    FDirNode := FDirNode.RootDir;
   FreeLib;
   inherited;
 end;
@@ -328,7 +343,7 @@ begin
     Flags := OPIF_ADDDOTS;
     CurDir := PFarChar(CurDirectory);
 
-    if FCurDirectory <> '' then
+    if CurDirectory <> '' then
     begin
       FPanelTitle := GetMsgStr(MPalelTitle) + ':' + FCurDirectory;
       PanelTitle := PFarChar(FPanelTitle);
@@ -547,23 +562,6 @@ begin
   end;
 end;
 
-type
-  PContextData = ^TContextData;
-  TContextData = record
-    FProgressBar: TProgressBar;
-    FText: TFarString;
-  end;
-
-function ProgressFunc(inPercent: EdsUInt32; inContext: Pointer;
-  var outCancel: EdsBool): EdsError; stdcall;
-begin
-  with PContextData(inContext)^ do
-    if not FProgressBar.UpdateProgress(inPercent, FText) then
-      Result := EDS_ERR_OPERATION_CANCELLED
-    else
-      Result := EDS_ERR_OK;
-end;
-
 procedure TCanon.DownloadFile(dirItem: EdsDirectoryItemRef;
   dirInfo: PEdsDirectoryItemInfo; DestPath: TFarString; Move: Integer;
   Silent: Boolean; ProgressBar: TProgressBar; attrib: Cardinal;
@@ -687,7 +685,7 @@ begin
             FText := Format(GetMsg(MCopying), [FromNameL, ToNameL]);
           FProgressBar := ProgressBar;
         end;
-        CheckEdsError(EdsSetProgressCallback(stream, @ProgressFunc,
+        CheckEdsError(EdsSetProgressCallback(stream, @EdsProgressCallback,
           kEdsProgressOption_Periodically, EdsUInt32(@ContextData)));
       end;
       CheckEdsError(EdsDownload(dirItem, dirInfo.size, stream));
@@ -1276,7 +1274,7 @@ function TCanon.SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
               if GetCurrentSession <> UserData^.BaseRef then
               begin
                 CloseSession;
-                OpenSession(UserData^.BaseRef);
+                OpenSession(UserData^.BaseRef, Self);
                 with FCameraInfo do
                 begin
                   CameraName := NewDir;
@@ -1534,7 +1532,7 @@ begin
   end;
 end;
 
-class procedure TCanon.OpenSession(session: EdsBaseRef);
+class procedure TCanon.OpenSession(session: EdsBaseRef; Sender: TCanon);
 begin
   if Assigned(CurrentSession) then
   begin
@@ -1547,6 +1545,10 @@ begin
   begin
     CheckEdsError(EdsOpenSession(session));
     CurrentSession := session;
+    {EdsSetCameraStateEventHandler(session, kEdsStateEvent_All,
+      @EdsStateEventHandler, Cardinal(Sender));}
+    EdsSetCameraStateEventHandler(session, kEdsStateEvent_ShutDown,
+      @EdsStateEventHandler, Cardinal(Sender));
     Inc(_SessionRefCount);
   end;
 end;
@@ -1556,83 +1558,17 @@ begin
   Result := CurrentSession;
 end;
 
-{ TFindDataItem }
-
-procedure TFindDataItem.DeleteItem(Index: Integer);
+procedure TCanon.OnCameraDisconnect;
 begin
-  Dec(FItemsNumber);
-  if Index < ItemsNumber then
-    MoveMemory(@TPluginPanelItemArray(PanelItem)[Index],
-      @TPluginPanelItemArray(PanelItem)[Index + 1],
-      (ItemsNumber - Index) * SizeOf(TPluginPanelItem));
+  //
 end;
 
-constructor TFindDataItem.Create;
-begin
-  inherited;
-  FItemsNumber := 0;
-end;
+{ TCanonDirNode }
 
-procedure TFindDataItem.DeleteItem(const FileName: PFarChar);
-var
-  i: Integer;
+procedure TCanonDirNode.FillPanelItem;
 begin
-  for i := 0 to ItemsNumber - 1 do
-{$IFDEF UNICODE}
-    if WStrComp(TPluginPanelItemArray(PanelItem)[i].FindData.cFileName, FileName) = 0 then
-{$ELSE}
-    if StrComp(TPluginPanelItemArray(PanelItem)[i].FindData.cFileName, FileName) = 0 then
-{$ENDIF}
-    begin
-      DeleteItem(i);
-      Break;
-    end;
-end;
+  //inherited;
 
-destructor TFindDataItem.Destroy;
-begin
-  ClearItems;
-  inherited;
-end;
-
-procedure TFindDataItem.SetItemsNumber(const Value: Integer);
-begin
-{$IFDEF OUT_LOG}
-  WriteLn(LogFile, 'GetFreeFindDataItem');
-{$ENDIF}
-  FItemsNumber := Value;
-  GetMem(FPanelItem, FItemsNumber * SizeOf(TPluginPanelItem));
-  ZeroMemory(FPanelItem, FItemsNumber * SizeOf(TPluginPanelItem));
-end;
-
-procedure TFindDataItem.ClearItems;
-var
-  i: Integer;
-  BaseRef: EdsBaseRef;
-begin
-  if ItemsNumber > 0 then
-  begin
-    for i := 0 to ItemsNumber - 1 do
-    begin
-      if TPluginPanelItemArray(PanelItem)[i].UserData <> 0 then
-      begin
-        BaseRef := PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData)^.BaseRef;
-        if BaseRef = TCanon.GetCurrentSession then
-          TCanon.CloseSession;
-        EdsRelease(BaseRef);
-        FreeMem(PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData));
-      end;
-{$IFDEF UNICODE}
-      if Assigned(TPluginPanelItemArray(PanelItem)[i].FindData.cFileName) then
-        FreeMem(TPluginPanelItemArray(PanelItem)[i].FindData.cFileName);
-{$ENDIF}
-    end;
-    FreeMem(PanelItem);
-    FItemsNumber := 0;
-  end;
-{$IFDEF OUT_LOG}
-  WriteLn(LogFile, 'FreeFindDataItem');
-{$ENDIF}
 end;
 
 initialization

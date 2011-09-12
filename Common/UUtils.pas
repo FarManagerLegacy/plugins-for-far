@@ -100,6 +100,10 @@ function RegEnumValueW(hKey: HKEY; dwIndex: DWORD; lpValueName: PWideChar;
 {$ENDIF}
 
 function PosEx(const SubStr, S: TFarString; Offset: Cardinal = 1): Integer;
+procedure FreeAndNil(var Obj: TObject); overload;
+procedure FreeAndNil(var Obj: PObj); overload;
+function StringReplace(const S, OldPattern, NewPattern: TFarString;
+  ReplaceAll: Boolean): TFarString;
 
 {.$DEFINE OUT_LOG}
 {$IFDEF RELEASE}
@@ -804,6 +808,55 @@ begin
       Inc(I);
     end;
     Result := 0;
+  end;
+end;
+
+procedure FreeAndNil(var Obj: TObject);
+var
+  Temp: TObject;
+begin
+  Temp := Obj;
+  Pointer(Obj) := nil;
+  Temp.Free;
+end;
+
+procedure FreeAndNil(var Obj: PObj);
+var
+  Temp: PObj;
+begin
+  Temp := Obj;
+  Pointer(Obj) := nil;
+  Temp^.Free;
+end;
+
+function StringReplace(const S, OldPattern, NewPattern: TFarString;
+  ReplaceAll: Boolean): TFarString;
+var
+  SearchStr, Patt, NewStr: TFarString;
+  Offset: Integer;
+begin
+  begin
+    SearchStr := S;
+    Patt := OldPattern;
+  end;
+  NewStr := S;
+  Result := '';
+  while SearchStr <> '' do
+  begin
+    Offset := Pos(Patt, SearchStr);
+    if Offset = 0 then
+    begin
+      Result := Result + NewStr;
+      Break;
+    end;
+    Result := Result + Copy(NewStr, 1, Offset - 1) + NewPattern;
+    NewStr := Copy(NewStr, Offset + Length(OldPattern), MaxInt);
+    if ReplaceAll then
+    begin
+      Result := Result + NewStr;
+      Break;
+    end;
+    SearchStr := Copy(SearchStr, Offset + Length(Patt), MaxInt);
   end;
 end;
 
