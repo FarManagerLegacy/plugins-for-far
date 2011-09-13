@@ -17,7 +17,7 @@ uses
   UTypes;
 
 type
-  TFindDataItem = class
+  TFindDataItem = class(TObject)
   private
     FPanelItem: PPluginPanelItem;
     FItemsNumber: Integer;
@@ -38,9 +38,10 @@ type
   TDirNodeClass = class of TDirNode;
   TDirNode = class(TFindDataItem)
   private
-    FParent: TDirNode; // Родительский каталог (nil для корневого каталога)
-    FSubDir: PList;    // Список подкаталогов
+    FParent: TDirNode;    // Родительский каталог (nil для корневого каталога)
+    FSubDir: PList;       // Список подкаталогов
     FDirName: TFarString; // Наименование каталога
+    FUserData: DWORD_PTR; // Пользовательские данные из PluginPanelItem
 
     function GetRootDir: TDirNode;
     function GetSubDirCount: Integer;
@@ -51,7 +52,8 @@ type
     function GetIsLeaf: Boolean;
     function GetDepth: Integer;
 
-    function CreateSubDir(const ADirName: TFarString = ''): TDirNode;
+    function CreateSubDir(AUserData: DWORD_PTR; AClass: TDirNodeClass;
+      const ADirName: TFarString = ''): TDirNode;
     function InternalChDir(const Dir: TFarString): TDirNode;
     function GetFullDirName: TFarString;
   protected
@@ -59,7 +61,7 @@ type
     procedure RemoveSubDir(SubDir: TDirNode); virtual;
     procedure DeleteSubDir(Index: Integer); virtual;
   public
-    constructor Create;
+    constructor Create; virtual;
     destructor Destroy; override;
 
     procedure FillPanelItem; virtual; abstract;
@@ -81,7 +83,9 @@ type
     property Depth: Integer read GetDepth;
 
     property DirName: TFarString read FDirName;
-    property FullDirName: TFarString read GetFullDirName; 
+    property FullDirName: TFarString read GetFullDirName;
+
+    property UserData: DWORD_PTR read FUserData; 
   end;
 
 implementation
@@ -112,7 +116,7 @@ end;
 constructor TFindDataItem.Create;
 begin
   inherited Create;
-  FItemsNumber := -1;
+  FItemsNumber := 0;
 end;
 
 procedure TFindDataItem.DeleteItem(const FileName: PFarChar);
@@ -202,10 +206,12 @@ destructor TDirNode.Destroy;
 var
   i: Integer;
 begin
-  for i := 0 to FSubDir.Count - 1 do
-    TDirNode(FSubDir.Items[i]).Free;
-  FreeAndNil(PObj(FSubDir));
-  FSubDir := nil;
+  if Assigned(FSubDir) then
+  begin
+    for i := 0 to FSubDir.Count - 1 do
+      TDirNode(FSubDir.Items[i]).Free;
+    FreeAndNilKol(FSubDir);
+  end;
   inherited;
 end;
 
@@ -313,13 +319,14 @@ function TDirNode.InternalChDir(const Dir: TFarString): TDirNode;
     i: Integer;
   begin
     Result := nil;
-    if not Assigned(FSubDir) and (ItemsNumber < 0) then
+    if not Assigned(FSubDir) then
     begin
       FSubDir := NewList;
       for i := 0 to ItemsNumber - 1 do
         with TPluginPanelItems(FPanelItem)[i] do
         if FindData.dwFileAttributes and FILE_ATTRIBUTE_DIRECTORY <> 0 then
-          AddSubDir(-1, CreateSubDir(FindData.cFileName));
+          AddSubDir(-1, CreateSubDir(UserData, TDirNodeClass(ClassType),
+            FindData.cFileName));
     end;
     for i := 0 to SubDirCount - 1 do
       if FSF.LStricmp(PFarChar(NewDir), PFarChar(SubDir[i].DirName)) = 0 then
@@ -358,23 +365,22 @@ begin
   end;
 end;
 
-function TDirNode.CreateSubDir(const ADirName: TFarString): TDirNode;
-var
-  DirNodeClass: TDirNodeClass;
+function TDirNode.CreateSubDir(AUserData: DWORD_PTR; AClass: TDirNodeClass;
+  const ADirName: TFarString): TDirNode;
 begin
-  DirNodeClass := TDirNodeClass(ClassType);
-  Result := DirNodeClass.Create;
+  Result := AClass.Create;
   Result.FParent := Self;
   Result.FDirName := ADirName;
   Result.FSubDir := nil;
+  Result.FUserData := AUserData;
   Result.FillPanelItem;
 end;
 
 function TDirNode.GetFullDirName: TFarString;
 begin
-  Result := cDelim + DirName;
-  if Assigned(Parent) then
-    Result := Parent.GetFullDirName + Result;
+  Result := DirName;
+  if Assigned(Parent) and not Parent.IsRoot then
+    Result := Parent.GetFullDirName + cDelim + Result;
 end;
 
 end.

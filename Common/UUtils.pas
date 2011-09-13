@@ -100,8 +100,8 @@ function RegEnumValueW(hKey: HKEY; dwIndex: DWORD; lpValueName: PWideChar;
 {$ENDIF}
 
 function PosEx(const SubStr, S: TFarString; Offset: Cardinal = 1): Integer;
-procedure FreeAndNil(var Obj: TObject); overload;
-procedure FreeAndNil(var Obj: PObj); overload;
+procedure FreeAndNil(var Obj);
+procedure FreeAndNilKol(var Obj); 
 function StringReplace(const S, OldPattern, NewPattern: TFarString;
   ReplaceAll: Boolean): TFarString;
 
@@ -811,20 +811,20 @@ begin
   end;
 end;
 
-procedure FreeAndNil(var Obj: TObject);
+procedure FreeAndNil(var Obj);
 var
   Temp: TObject;
 begin
-  Temp := Obj;
+  Temp := TObject(Obj);
   Pointer(Obj) := nil;
   Temp.Free;
 end;
 
-procedure FreeAndNil(var Obj: PObj);
+procedure FreeAndNilKol(var Obj);
 var
   Temp: PObj;
 begin
-  Temp := Obj;
+  Temp := PObj(Obj);
   Pointer(Obj) := nil;
   Temp^.Free;
 end;
