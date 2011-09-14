@@ -1,4 +1,4 @@
-unit UFileSystem;
+unit UDirNode;
 
 {$i CommonDirectives.inc}
 
@@ -17,7 +17,7 @@ uses
   UTypes;
 
 type
-  TFindDataItem = class(TObject)
+  TFindDataItem = class
   private
     FPanelItem: PPluginPanelItem;
     FItemsNumber: Integer;
@@ -116,8 +116,8 @@ begin
     if UserData <> 0 then
       FreeUserData(Pointer(UserData));
 {$IFDEF UNICODE}
-     if Assigned(FindData.cFileName) then
-        FreeMem(FindData.cFileName);
+    if Assigned(FindData.cFileName) then
+      FreeMem(FindData.cFileName);
 {$ENDIF}
   end;
   Dec(FItemsNumber);

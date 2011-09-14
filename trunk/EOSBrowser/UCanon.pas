@@ -27,7 +27,7 @@ uses
   UUtils,
   UProgressBar,
   ULang,
-  UFileSystem,
+  UDirNode,
   UEDialogs;
 
 type
