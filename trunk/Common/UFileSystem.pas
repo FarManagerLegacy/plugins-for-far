@@ -35,13 +35,21 @@ type
     property ItemsNumber: Integer read FItemsNumber write SetItemsNumber;
   end;
 
+  TDirNode = class;
+  TBeforeChangeDirEvent = procedure(ADirNode: TDirNode;
+    var Allow: Boolean) of object;
+  TChangeDirEvent = procedure(ADirNode: TDirNode) of object;
   TDirNodeClass = class of TDirNode;
+  
   TDirNode = class(TFindDataItem)
   private
     FParent: TDirNode;    // Родительский каталог (nil для корневого каталога)
     FSubDir: PList;       // Список подкаталогов
     FDirName: TFarString; // Наименование каталога
     FUserData: DWORD_PTR; // Пользовательские данные из PluginPanelItem
+
+    FBeforeChangeDir: TBeforeChangeDirEvent;
+    FChangeDir: TChangeDirEvent;
 
     function GetRootDir: TDirNode;
     function GetSubDirCount: Integer;
@@ -65,6 +73,7 @@ type
     destructor Destroy; override;
 
     procedure FillPanelItem; virtual; abstract;
+
     function ChDir(const Dir: TFarString): TDirNode;
 
     procedure MoveTo(NewParent: TDirNode; Index: Integer = -1); overload;
@@ -77,6 +86,7 @@ type
     property SubDirCount: Integer read GetSubDirCount;
     property SubDir[Index: Integer]: TDirNode read GetSubDir;
     property IndexAsSubDir: Integer read GetIndexAsSubDir;
+    procedure FreeSubDir;
 
     property IsRoot: Boolean read GetIsRoot;
     property IsLeaf: Boolean read GetIsLeaf;
@@ -85,7 +95,11 @@ type
     property DirName: TFarString read FDirName;
     property FullDirName: TFarString read GetFullDirName;
 
-    property UserData: DWORD_PTR read FUserData; 
+    property UserData: DWORD_PTR read FUserData;
+
+    property OnBeforeChangeDir: TBeforeChangeDirEvent read FBeforeChangeDir
+      write FBeforeChangeDir;
+    property OnChangeDir: TChangeDirEvent read FChangeDir write FChangeDir;
   end;
 
 implementation
@@ -203,15 +217,8 @@ begin
 end;
 
 destructor TDirNode.Destroy;
-var
-  i: Integer;
 begin
-  if Assigned(FSubDir) then
-  begin
-    for i := 0 to FSubDir.Count - 1 do
-      TDirNode(FSubDir.Items[i]).Free;
-    FreeAndNilKol(FSubDir);
-  end;
+  FreeSubDir;
   inherited;
 end;
 
@@ -309,11 +316,47 @@ begin
 end;
 
 function TDirNode.ChDir(const Dir: TFarString): TDirNode;
+var
+  NewDir: TFarString;
 begin
-  Result := InternalChDir(StringReplace(Dir, '/', cDelim, True));
+  NewDir := ExcludeTrailingPathDelimiter(StringReplace(Dir, '/', cDelim, True));
+  if Pos(FullDirName, NewDir) = 1 then
+    Delete(NewDir, 1, Length(FullDirName) + 1);
+  Result := InternalChDir(NewDir);
 end;
 
 function TDirNode.InternalChDir(const Dir: TFarString): TDirNode;
+  function TestBeforeChange(ADirNode: TDirNode): Boolean;
+  begin
+    Result := True;
+    if Assigned(FBeforeChangeDir) then
+      FBeforeChangeDir(ADirNode, Result);
+  end;
+  function ChDirRoot: TDirNode;
+  begin
+    if IsRoot then
+      Result := Self
+    else
+    begin
+      Result := nil;
+      if TestBeforeChange(RootDir) then
+      begin
+        Result := RootDir;
+        if Assigned(FChangeDir) then
+          FChangeDir(Result);
+      end;
+    end;
+  end;
+  function ChDirUp: TDirNode;
+  begin
+    Result := nil;
+    if TestBeforeChange(Parent) then
+    begin
+      Result := Parent;
+      if Assigned(FChangeDir) then
+        FChangeDir(Result);
+    end;
+  end;
   function ChDirDown(const NewDir: TFarString): TDirNode;
   var
     i: Integer;
@@ -331,7 +374,12 @@ function TDirNode.InternalChDir(const Dir: TFarString): TDirNode;
     for i := 0 to SubDirCount - 1 do
       if FSF.LStricmp(PFarChar(NewDir), PFarChar(SubDir[i].DirName)) = 0 then
       begin
-        Result := SubDir[i];
+        if TestBeforeChange(SubDir[i]) then
+        begin
+          Result := SubDir[i];
+          if Assigned(FChangeDir) then
+            FChangeDir(Result);
+        end;
         Break;
       end;
   end;
@@ -339,17 +387,18 @@ const
   cUpDir = '..';
 var
   p: Integer;
+  NewDirNode: TDirNode;
 begin
   Result := nil;
   if Dir = '' then
-    Exit
+    Result := Self
   else if Dir = cUpDir then
-    Result := Parent
+    Result := ChDirUp
   else if Dir[1] = cDelim then
   begin
-    Result := RootDir;
-    if Assigned(Result) and (Dir <> cDelim) then
-      Result := RootDir.InternalChDir(Copy(Dir, 2, Length(Dir) - 1))
+    NewDirNode := ChDirRoot;
+    if Assigned(NewDirNode) and (Dir <> cDelim) then
+      Result := NewDirNode.InternalChDir(Copy(Dir, 2, Length(Dir) - 1));
   end
   else
   begin
@@ -358,9 +407,9 @@ begin
       Result := ChDirDown(Dir)
     else
     begin
-      Result := ChDirDown(Copy(Dir, 1, p - 1));
-      if Assigned(Result) then
-        Result := Result.InternalChDir(Copy(Dir, p + 1, Length(Dir) - p));
+      NewDirNode := ChDirDown(Copy(Dir, 1, p - 1));
+      if Assigned(NewDirNode) then
+        Result := NewDirNode.InternalChDir(Copy(Dir, p + 1, Length(Dir) - p));
     end;
   end;
 end;
@@ -373,6 +422,8 @@ begin
   Result.FDirName := ADirName;
   Result.FSubDir := nil;
   Result.FUserData := AUserData;
+  Result.FBeforeChangeDir := FBeforeChangeDir;
+  Result.FChangeDir := FChangeDir;
   Result.FillPanelItem;
 end;
 
@@ -381,6 +432,18 @@ begin
   Result := DirName;
   if Assigned(Parent) and not Parent.IsRoot then
     Result := Parent.GetFullDirName + cDelim + Result;
+end;
+
+procedure TDirNode.FreeSubDir;
+var
+  i: Integer;
+begin
+  if Assigned(FSubDir) then
+  begin
+    for i := 0 to FSubDir.Count - 1 do
+      TDirNode(FSubDir.Items[i]).Free;
+    FreeAndNilKol(FSubDir);
+  end;
 end;
 
 end.
