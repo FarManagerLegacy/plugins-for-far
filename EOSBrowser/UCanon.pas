@@ -104,6 +104,8 @@ type
       dirInfo: PEdsDirectoryItemInfo = nil); overload;
     procedure SetInfoLinesCount(Value: Integer);
     procedure OnCameraDisconnect;
+    procedure OnBeforeChangeDirEvent(ADirNode: TDirNode; var Allow: Boolean);
+    procedure OnChangeDirEvent(ADirNode: TDirNode);
   public
     constructor Create(const FileName: TFarString);
     destructor Destroy; override;
@@ -918,6 +920,8 @@ begin
   if not Assigned(FDirNode) then
   try
     FDirNode := TCanonDirNode.Create;
+    FDirNode.OnBeforeChangeDir := OnBeforeChangeDirEvent;
+    FDirNode.OnChangeDir := OnChangeDirEvent;
     FDirNode.FillPanelItem;
   except
     raise;
@@ -925,27 +929,6 @@ begin
   PanelItem := FDirNode.PanelItem;
   ItemsNumber := FDirNode.ItemsNumber;
   Result := 1;
-
-  {if Length(FFindDataItemArray) = 0 then
-  begin
-    SetLength(FFindDataItemArray, 1);
-    FCurFindDataItem := 0;
-    FFindDataItemArray[FCurFindDataItem] := TFindDataItem.Create;
-    try
-      GetCameraInfo(FFindDataItemArray[FCurFindDataItem]);
-    except
-      FFindDataItemArray[FCurFindDataItem].Free;
-      SetLength(FFindDataItemArray, 0);
-      raise;
-    end;
-  end;
-  if (FCurFindDataItem >= 0) and
-    (FCurFindDataItem < Length(FFindDataItemArray)) then
-  begin
-    PanelItem := FFindDataItemArray[FCurFindDataItem].PanelItem;
-    ItemsNumber := FFindDataItemArray[FCurFindDataItem].ItemsNumber;
-    Result := 1;
-  end;}
 end;
 
 type
@@ -981,76 +964,13 @@ begin
 end;
 
 function TCanon.SetDirectory(const Dir: PFarChar; OpMode: Integer): Integer;
-  function GetProperty(camera: EdsCameraRef; PropertyId: EdsPropertyID;
-    ff: TFormatFunction = nil): TFarString;
-  const
-    cDateTimeFmt = '%02d.%02d.%04d %02d:%02d:%02d';
-  var
-    str: array[0..63] of EdsChar;
-    data: EdsUInt32;
-    datetime: EdsTime;
-    p: Pointer;
-    datatype, size: EdsUInt32;
-  begin
-    Result := '';
-    if EdsGetPropertySize(camera, PropertyId, 0, datatype, size) = EDS_ERR_OK then
-    try
-      if EdsEnumDataType(datatype) = kEdsDataType_String then
-      begin
-        p := @str;
-        CheckEdsError(
-          EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)));
-        if Assigned(ff) then
-          Result := ff(str)
-        else
-{$IFDEF UNICODE}
-          Result := CharToWideChar(str);
-{$ELSE}
-          Result := str;
-{$ENDIF}
-      end
-      else if EdsEnumDataType(datatype) = kEdsDataType_Time then
-      begin
-        P := @datetime;
-        CheckEdsError(
-          EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)));
-        if Assigned(ff) then
-          Result := ff(datetime)
-        else
-          Result := Format(cDateTimeFmt, [
-            datetime.day, datetime.month, datetime.year,
-            datetime.hour, datetime.minute, datetime.second]);
-      end
-      else if EdsEnumDataType(datatype) in [kEdsDataType_Int32] then
-      begin
-        p := @data;
-        CheckEdsError(
-          EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)));
-        if Assigned(ff) then
-          Result := ff(data)
-        else
-          Result := Format('%d', [data]);
-      end
-      else if EdsEnumDataType(datatype) in [kEdsDataType_UInt32] then
-      begin
-        p := @data;
-        CheckEdsError(EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)));
-        if Assigned(ff) then
-          Result := ff(data)
-        else
-          Result := Format('%u', [data]);
-      end;
-    except
-      Result := GetMsgStr(MPropertyUnavailable);
-    end
-    else
-      Result := GetMsgStr(MPropertyUnavailable);
-  end;
 var
   NewDirNode: TDirNode;
+  PanelInfo: TPanelInfo;
 begin
   Result := 0;
-  if Assigned(FDirNode) then
+  if Assigned(FDirNode) and
+    not (FDirNode.IsRoot and (OpMode and OPM_FIND <> 0)) then
   begin
     NewDirNode := FDirNode.ChDir(Dir);
     if Assigned(NewDirNode) then
@@ -1060,246 +980,22 @@ begin
       Result := 1;
     end;
   end;
-end;
-(*  function ChDirDown(NewDir: PFarChar; var NewFindDataItem: Integer;
-    var NewDirectory: TFarString): Boolean;
-  var
-    i, CurFindDataItem: Integer;
-    UserData: PPanelUserData;
-    volumeInfo: EdsVolumeInfo;
-  begin
-    Result := False;
-    UserData := nil;
-    with FFindDataItemArray[NewFindDataItem] do
-      if ItemsNumber > 0 then
-      begin
-        for i := 0 to ItemsNumber - 1 do
-          if FSF.LStricmp(TPluginPanelItemArray(PanelItem)[i].FindData.cFileName,
-            NewDir) = 0 then
-          begin
-            NewDir := TPluginPanelItemArray(PanelItem)[i].FindData.cFileName;
-            UserData := PPanelUserData(TPluginPanelItemArray(PanelItem)[i].UserData);
-            Break;
-          end;
-      end;
-    if Assigned(UserData) then
+  if OpMode and (OPM_FIND or OPM_SILENT) = 0 then
+    if Result <> 0 then
     begin
-      for i := NewFindDataItem + 1 to Length(FFindDataItemArray) - 1 do
-        if UserData^.BaseRef = FFindDataItemArray[i].ParentData^.BaseRef then
-        begin
-          NewFindDataItem := i;
-          Result := True;
-          Break;
-        end;
-      if not Result then
-      begin
-        CurFindDataItem := Length(FFindDataItemArray);
-        SetLength(FFindDataItemArray, CurFindDataItem + 1);
-        FFindDataItemArray[CurFindDataItem] := TFindDataItem.Create;
-        try
-          case UserData^.BaseRefType of
-            brtCamera:
-            begin
-              if GetCurrentSession <> UserData^.BaseRef then
-              begin
-                CloseSession;
-                OpenSession(UserData^.BaseRef, Self);
-                with FCameraInfo do
-                begin
-                  CameraName := NewDir;
-                  BodyID := GetProperty(UserData^.BaseRef, kEdsPropID_BodyIdEx,
-                    FormatBodyId);
-                  FirmwareVersion := GetProperty(UserData^.BaseRef, kEdsPropID_FirmwareVersion);
-                  DateTime := GetProperty(UserData^.BaseRef, kEdsPropID_DateTime);
-                  BatteryLevel := GetProperty(UserData^.BaseRef,
-                    kEdsPropID_BatteryLevel, @FormatBatteryLevel);
-                  BatteryQuality := GetProperty(UserData^.BaseRef,
-                    kEdsPropID_BatteryQuality, @FormatBatteryQuality);
-                end;
-              end;
-              GetVolumeInfo(UserData, FFindDataItemArray[CurFindDataItem]);
-            end;
-            brtVolume:
-            with FVolumeInfo do
-            begin
-              if EdsGetVolumeInfo(UserData^.BaseRef, volumeInfo) = EDS_ERR_OK then
-              begin
-                VolumeName := NewDir;
-                case volumeInfo.storageType of
-                  0: StorageType := GetMsgStr(MNoCard);
-                  1: StorageType := GetMsgStr(M_CF);
-                  2: StorageType := GetMsgStr(M_SD);
-                  else StorageType := '';
-                end;
-                case volumeInfo.access of
-                  0: Access := GetMsgStr(MReadOnly);
-                  1: Access := GetMsgStr(MWriteOnly);
-                  2: Access := GetMsgStr(MReadWrite);
-                  $FFFFFFFF: Access := GetMsgStr(MAccessError);
-                  else Access := '';
-                end;
-                MaxCapacity := FormatFileSize(volumeInfo.maxCapacity);
-                FreeSpace := FormatFileSize(volumeInfo.freeSpaceInBytes);
-              end
-              else
-              begin
-                VolumeName := '';
-                StorageType := '';
-                Access := '';
-                MaxCapacity := '';
-                FreeSpace := '';
-              end;
-              GetDirectoryInfo(UserData, FFindDataItemArray[CurFindDataItem], True);
-            end;
-            brtDirItem:
-              GetDirectoryInfo(UserData, FFindDataItemArray[CurFindDataItem], True);
-          end;
-          NewFindDataItem := CurFindDataItem;
-          Result := True;
-        except
-          FFindDataItemArray[CurFindDataItem].Free;
-          SetLength(FFindDataItemArray, CurFindDataItem);
-          raise;
-        end;
-      end;
-      if Result then
-      begin
-        if NewDirectory <> '' then
-          NewDirectory := NewDirectory + cDelim;
-        NewDirectory := NewDirectory + NewDir;
-      end;
-    end;
-  end;
-  function ChDirUp(var NewFindDataItem: Integer;
-    var NewDirectory: TFarString): Boolean;
-  var
-    UserData: PPanelUserData;
-    i, j: Integer;
-  begin
-    Result := False;
-    UserData := FFindDataItemArray[NewFindDataItem].ParentData;
-    for i := NewFindDataItem - 1 downto 0 do
-      with FFindDataItemArray[i] do
-      begin
-        for j := 0 to ItemsNumber - 1 do
-        begin
-          if UserData^.BaseRef =
-            PPanelUserData(TPluginPanelItemArray(PanelItem)[j].UserData)^.BaseRef then
-          begin
-            NewFindDataItem := i;
-            Result := True;
-            Break;
-          end;
-        end;
-        if Result then
-        begin
-          j := DelimiterLast(NewDirectory, cDelim);
-          if (j > 0) and (j < Length(NewDirectory)) then
-            NewDirectory := Copy(NewDirectory, 1, j - 1)
-          else
-          begin
-            NewDirectory := '';
-            for j := Length(FFindDataItemArray) - 1 to 1 do
-              FFindDataItemArray[j].Free;
-            SetLength(FFindDataItemArray, 1);
-            CloseSession;
-          end;
-          Break;
-        end;
-      end;
-  end;
-const
-  cUpDir = '..';
-var
-  p, p1: Integer;
-  NewDirectory, CurDir: TFarString;
-  err_ok: Boolean;
-  CurFindDataItem: Integer;
-  PanelInfo: TPanelInfo;
-begin
-  Result := 0;
-  if Dir = cDelim then
-  begin
-    if FCurFindDataItem <> 0 then
-    begin
-      FCurFindDataItem := 0;
-      FCurDirectory := '';
-    end;
-    Result := 1;
-  end
-  else if (FCurFindDataItem >= 0) and
-    (FCurFindDataItem < Length(FFindDataItemArray)) then
-  begin
-    if Dir = cUpDir then
-    begin
-      if ChDirUp(FCurFindDataItem, FCurDirectory) then
-        Result := 1;
+{$IFDEF UNICODE}
+      FARAPI.Control(PANEL_PASSIVE, FCTL_GETPANELINFO, 0, @PanelInfo);
+      if PanelInfo.PanelType = PTYPE_INFOPANEL then
+        FARAPI.Control(PANEL_PASSIVE, FCTL_UPDATEPANEL, 0, nil);
+{$ELSE}
+      FARAPI.Control(INVALID_HANDLE_VALUE, FCTL_GETANOTHERPANELINFO, @PanelInfo);
+      if PanelInfo.PanelType = PTYPE_INFOPANEL then
+        FARAPI.Control(INVALID_HANDLE_VALUE, FCTL_UPDATEANOTHERPANEL, nil);
+{$ENDIF}
     end
     else
-    begin
-      if Pos(cDelim, Dir) = 0 then
-      begin
-        if ChDirDown(Dir, FCurFindDataItem, FCurDirectory) then
-          Result := 1;
-      end
-      else
-      begin
-        if Dir[0] = cDelim then
-        begin
-          NewDirectory := '';
-          CurFindDataItem := 0;
-          p1 := 2;
-        end
-        else
-        begin
-          p1 := 1;
-          NewDirectory := FCurDirectory;
-          CurFindDataItem := FCurFindDataItem;
-        end;
-        p := PosEx(cDelim, Dir, p1);
-        err_ok := True;
-        while err_ok and (p > 0) do
-        begin
-          CurDir := Copy(Dir, p1, p - p1);
-          if CurDir = cUpDir then
-            err_ok := ChDirUp(CurFindDataItem, NewDirectory)
-          else if CurDir <> '' then
-            err_ok := ChDirDown(PFarChar(CurDir), CurFindDataItem, NewDirectory);
-          p1 := p + 1;
-          p := PosEx(cDelim, Dir, p1);
-        end;
-        if err_ok then
-        begin
-          CurDir := Copy(Dir, p1, Length(Dir) - p1 + 1);
-          if CurDir = cUpDir then
-            err_ok := ChDirUp(CurFindDataItem, NewDirectory)
-          else if CurDir <> '' then
-            err_ok := ChDirDown(PFarChar(CurDir), CurFindDataItem, NewDirectory);
-        end;
-        if err_ok then
-        begin
-          FCurDirectory := NewDirectory;
-          FCurFindDataItem := CurFindDataItem;
-          Result := 1;
-        end;
-      end;
-    end;
-  end;
-  if Result <> 0 then
-  begin
-{$IFDEF UNICODE}
-    FARAPI.Control(PANEL_PASSIVE, FCTL_GETPANELINFO, 0, @PanelInfo);
-    if PanelInfo.PanelType = PTYPE_INFOPANEL then
-      FARAPI.Control(PANEL_PASSIVE, FCTL_UPDATEPANEL, 0, nil);
-{$ELSE}
-    FARAPI.Control(INVALID_HANDLE_VALUE, FCTL_GETANOTHERPANELINFO, @PanelInfo);
-    if PanelInfo.PanelType = PTYPE_INFOPANEL then
-      FARAPI.Control(INVALID_HANDLE_VALUE, FCTL_UPDATEANOTHERPANEL, nil);
-{$ENDIF}
-  end
-  else if OpMode and (OPM_FIND or OPM_SILENT) = 0 then
-    ShowMessage(GetMsg(MError), GetMsg(MPathNotFound), FMSG_WARNING + FMSG_MB_OK);
-end;*)
+      ShowMessage(GetMsg(MError), GetMsg(MPathNotFound), FMSG_WARNING + FMSG_MB_OK);
+end;
 
 procedure TCanon.SetInfoLinesCount(Value: Integer);
 begin
@@ -1376,8 +1072,8 @@ begin
     CurrentSession := session;
     {EdsSetCameraStateEventHandler(session, kEdsStateEvent_All,
       @EdsStateEventHandler, Cardinal(Sender));}
-    EdsSetCameraStateEventHandler(session, kEdsStateEvent_ShutDown,
-      @EdsStateEventHandler, Cardinal(Sender));
+    {EdsSetCameraStateEventHandler(session, kEdsStateEvent_ShutDown,
+      @EdsStateEventHandler, Cardinal(Sender));}
     Inc(_SessionRefCount);
   end;
 end;
@@ -1390,6 +1086,146 @@ end;
 procedure TCanon.OnCameraDisconnect;
 begin
   //
+end;
+
+procedure TCanon.OnBeforeChangeDirEvent(ADirNode: TDirNode;
+  var Allow: Boolean);
+begin
+  if ADirNode.UserData <> 0 then
+    with PPanelUserData(ADirNode.UserData)^ do
+    begin
+      case BaseRefType of
+        brtCamera:
+          if GetCurrentSession <> BaseRef then
+          begin
+            CloseSession;
+            OpenSession(BaseRef, Self);
+          end;
+      end;
+    end
+  else if ADirNode.IsRoot then
+    CloseSession;
+end;
+
+procedure TCanon.OnChangeDirEvent(ADirNode: TDirNode);
+  function GetProperty(camera: EdsCameraRef; PropertyId: EdsPropertyID;
+    ff: TFormatFunction = nil): TFarString;
+  const
+    cDateTimeFmt = '%02d.%02d.%04d %02d:%02d:%02d';
+  var
+    str: array[0..63] of EdsChar;
+    data: EdsUInt32;
+    datetime: EdsTime;
+    p: Pointer;
+    datatype, size: EdsUInt32;
+  begin
+    Result := '';
+    if EdsGetPropertySize(camera, PropertyId, 0, datatype, size) = EDS_ERR_OK then
+    try
+      if EdsEnumDataType(datatype) = kEdsDataType_String then
+      begin
+        p := @str;
+        CheckEdsError(
+          EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)));
+        if Assigned(ff) then
+          Result := ff(str)
+        else
+{$IFDEF UNICODE}
+          Result := CharToWideChar(str);
+{$ELSE}
+          Result := str;
+{$ENDIF}
+      end
+      else if EdsEnumDataType(datatype) = kEdsDataType_Time then
+      begin
+        P := @datetime;
+        CheckEdsError(
+          EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)));
+        if Assigned(ff) then
+          Result := ff(datetime)
+        else
+          Result := Format(cDateTimeFmt, [
+            datetime.day, datetime.month, datetime.year,
+            datetime.hour, datetime.minute, datetime.second]);
+      end
+      else if EdsEnumDataType(datatype) in [kEdsDataType_Int32] then
+      begin
+        p := @data;
+        CheckEdsError(
+          EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)));
+        if Assigned(ff) then
+          Result := ff(data)
+        else
+          Result := Format('%d', [data]);
+      end
+      else if EdsEnumDataType(datatype) in [kEdsDataType_UInt32] then
+      begin
+        p := @data;
+        CheckEdsError(EdsGetPropertyData(camera, PropertyId, 0, size, Pointer(P^)));
+        if Assigned(ff) then
+          Result := ff(data)
+        else
+          Result := Format('%u', [data]);
+      end;
+    except
+      Result := GetMsgStr(MPropertyUnavailable);
+    end
+    else
+      Result := GetMsgStr(MPropertyUnavailable);
+  end;
+var
+  volumeInfo: EdsVolumeInfo;
+begin
+  if ADirNode.UserData <> 0 then
+  begin
+    with PPanelUserData(ADirNode.UserData)^ do
+      case BaseRefType of
+        brtCamera:
+        with FCameraInfo do
+        begin
+          CameraName := ADirNode.DirName;
+          BodyID := GetProperty(BaseRef, kEdsPropID_BodyIdEx,
+            FormatBodyId);
+          FirmwareVersion := GetProperty(BaseRef, kEdsPropID_FirmwareVersion);
+          DateTime := GetProperty(BaseRef, kEdsPropID_DateTime);
+          BatteryLevel := GetProperty(BaseRef,
+            kEdsPropID_BatteryLevel, @FormatBatteryLevel);
+          BatteryQuality := GetProperty(BaseRef,
+            kEdsPropID_BatteryQuality, @FormatBatteryQuality);
+        end;
+        brtVolume:
+        with FVolumeInfo do
+        begin
+          if EdsGetVolumeInfo(BaseRef, volumeInfo) = EDS_ERR_OK then
+          begin
+            VolumeName := ADirNode.DirName;
+            case volumeInfo.storageType of
+              0: StorageType := GetMsgStr(MNoCard);
+              1: StorageType := GetMsgStr(M_CF);
+              2: StorageType := GetMsgStr(M_SD);
+              else StorageType := '';
+            end;
+            case volumeInfo.access of
+              0: Access := GetMsgStr(MReadOnly);
+              1: Access := GetMsgStr(MWriteOnly);
+              2: Access := GetMsgStr(MReadWrite);
+              $FFFFFFFF: Access := GetMsgStr(MAccessError);
+              else Access := '';
+            end;
+            MaxCapacity := FormatFileSize(volumeInfo.maxCapacity);
+            FreeSpace := FormatFileSize(volumeInfo.freeSpaceInBytes);
+          end
+          else
+          begin
+            VolumeName := '';
+            StorageType := '';
+            Access := '';
+            MaxCapacity := '';
+            FreeSpace := '';
+          end;
+        end;
+      end;
+  end;
 end;
 
 { TCanonDirNode }

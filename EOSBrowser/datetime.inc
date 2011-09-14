@@ -1,4 +1,4 @@
 const
-  CompileTime = 40799.7108336921;
-  CompileDateStr = '13 сен 2011';
-  CompileTimeStr = '17:03:36';
+  CompileTime = 40800.6977584838;
+  CompileDateStr = '14 сен 2011';
+  CompileTimeStr = '16:44:46';
