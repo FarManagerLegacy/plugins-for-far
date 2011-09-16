@@ -43,6 +43,7 @@ type
 
 const
   cDelim: TFarString = '\';
+  cMaxPanelModes = 10;
 
 function GetMsg(MsgId: Integer): PFarChar;
 function GetMsgStr(MsgId: Integer): TFarString;
