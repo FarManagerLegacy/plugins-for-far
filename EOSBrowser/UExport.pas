@@ -10,8 +10,10 @@ uses
   err,
 {$IFDEF UNICODE}
   PluginW,
+  FarKeysW,
 {$ELSE}
   plugin,
+  farkeys,
 {$ENDIF}
   UTypes,
   UUtils,
@@ -317,6 +319,18 @@ begin
     end;
 end;
 
+{$IFDEF UNICODE}
+function ProcessKeyW(hPlugin: THandle; Key: Integer; ControlState: Cardinal): Integer; stdcall;
+{$ELSE}
+function ProcessKey(hPlugin: THandle; Key: Integer; ControlState: Cardinal): Integer; stdcall;
+{$ENDIF}
+begin
+  if (hPlugin <> 0) and (Key = $52) and (ControlState = PKF_CONTROL) then
+    // Ctrl-R
+    TCanon(hPlugin).RereadFindData := True;
+  Result := 0;
+end;
+
 (*
   Функция MakeDirectory вызывается для создания нового каталога
   в эмулируемой файловой системе.
@@ -366,7 +380,8 @@ exports
   GetFindDataW,
   SetDirectoryW,
   DeleteFilesW,
-  GetFilesW;
+  GetFilesW,
+  ProcessKeyW;
   {
   FreeFindDataW,
   MakeDirectoryW,
@@ -382,7 +397,8 @@ exports
   GetFindData,
   SetDirectory,
   DeleteFiles,
-  GetFiles;
+  GetFiles,
+  ProcessKey;
   {
   FreeFindData,
   MakeDirectory,

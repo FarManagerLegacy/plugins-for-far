@@ -177,8 +177,8 @@ begin
         if UserData <> 0 then
           FreeUserData(Pointer(UserData));
 {$IFDEF UNICODE}
-      if Assigned(FindData.cFileName) then
-        FreeMem(FindData.cFileName);
+        if Assigned(FindData.cFileName) then
+          FreeMem(FindData.cFileName);
 {$ENDIF}
       end;
     FreeMem(PanelItem);
@@ -440,7 +440,7 @@ var
 begin
   if Assigned(FSubDir) then
   begin
-    for i := 0 to FSubDir.Count - 1 do
+    for i := 0 to SubDirCount - 1 do
       TDirNode(FSubDir.Items[i]).Free;
     FreeAndNilKol(FSubDir);
   end;

@@ -75,13 +75,14 @@ type
     FInfoLines: PInfoPanelLineArray;
     FInfoLineCount: Integer;
 
-    FPanelModesArray: array[0..9] of TPanelMode;
-    FColumnTitles: array[0..0] of PFarChar;
+    FPanelModes: array[0..cMaxPanelModes - 1] of TPanelMode;
+    FColumnTitles: array[0..1] of PFarChar;
 
     FDirNode: TDirNode;
 
     FCameraInfo: TCameraInfo;
     FVolumeInfo: TVolumeInfo;
+    FRereadFindData: Boolean;
   private
     class procedure LoadLib(const FileName: TFarString);
     class procedure FreeLib;
@@ -119,6 +120,7 @@ type
     function GetFiles(PanelItem: PPluginPanelItem; ItemsNumber, Move: Integer;
       {$IFDEF UNICODE}var{$ENDIF} DestPath: PFarChar; OpMode: Integer): Integer;
 
+    property RereadFindData: Boolean read FRereadFindData write FRereadFindData;
     property CurDirectory: TFarString read FCurDirectory;
   end;
 
@@ -132,8 +134,6 @@ procedure CheckEdsError(edserr: EdsError);
 implementation
 
 uses UDialogs;
-
-{ TFindDataItem }
 
 procedure GetImageDate(stream: EdsStreamRef; dirItem: EdsDirectoryItemRef;
   var FileTime: TFileTime);
@@ -235,17 +235,9 @@ type
   TPluginPanelItemArray = array of TPluginPanelItem;
 
 constructor TCanon.Create(const FileName: TFarString);
-var
-  i: Integer;
 begin
   inherited Create;
   LoadLib(FileName);
-  for i := 0 to 9 do
-  with FPanelModesArray[i] do
-  begin
-    ColumnTypes := 'N';
-    ColumnWidths := '0';
-  end;
   FInfoLines := nil;
   FInfoLineCount := 0;
   FDirNode := nil;
@@ -351,9 +343,31 @@ procedure TCanon.GetOpenPluginInfo(var Info: TOpenPluginInfo);
       StrLCopy(FInfoLines^[Index].Data, Text, 79);
 {$ENDIF}
   end;
-var
-  i: Integer;
-  SetTitles: Boolean;
+  procedure SetPanelModes(MsgId: TLanguageID;
+    const AColumnTypes, AColumnWidths: PFarChar);
+  var
+    i: Integer;
+  begin
+    FColumnTitles[0] := GetMsg(MsgId);
+    FColumnTitles[1] := nil;
+    for i := 0 to cMaxPanelModes - 1 do
+      with FPanelModes[i] do
+      begin
+        ColumnTypes := AColumnTypes;
+        ColumnWidths := AColumnWidths;
+        ColumnTitles := @FColumnTitles;
+      end;
+    with Info do
+    begin
+      PanelModesArray := @FPanelModes;
+      PanelModesNumber := cMaxPanelModes;
+    end;
+  end;
+const
+  cCameraColumnTypes: PFarChar = 'N';
+  cCameraColumnWidths: PFarChar = '0';
+  cVolumeColumnTypes: PFarChar = 'N,SC';
+  cVolumeColumnWidths: PFarChar = '0,10';
 begin
   with Info do
   begin
@@ -373,24 +387,9 @@ begin
     if Assigned(FDirNode) then
     begin
       if FDirNode.IsRoot then
-      begin
-        FColumnTitles[0] := GetMsg(MCameraName);
-        SetTitles := True;
-      end
-      else if Assigned(FDirNode.Parent) and (FDirNode.Parent.IsRoot) then
-      begin
-        FColumnTitles[0] := GetMsg(MVolumeName);
-        SetTitles := True;
-      end
-      else
-        SetTitles := False;
-      if SetTitles then
-      begin
-        for i := 0 to 9 do
-          FPanelModesArray[i].ColumnTitles := @FColumnTitles;
-        PanelModesArray := @FPanelModesArray;
-        PanelModesNumber := 10;
-      end
+        SetPanelModes(MCameraName, cCameraColumnTypes, cCameraColumnWidths)
+      else if FDirNode.Depth = 1 then
+        SetPanelModes(MVolumeName, cVolumeColumnTypes, cVolumeColumnWidths)
       else
         Flags := Flags + OPIF_USEFILTER + OPIF_USESORTGROUPS + OPIF_USEHIGHLIGHTING;
       if not FDirNode.IsRoot then
@@ -918,13 +917,21 @@ function TCanon.GetFindData(var PanelItem: PPluginPanelItem;
   var ItemsNumber: Integer; OpMode: Integer): Integer;
 begin
   if not Assigned(FDirNode) then
-  try
-    FDirNode := TCanonDirNode.Create;
-    FDirNode.OnBeforeChangeDir := OnBeforeChangeDirEvent;
-    FDirNode.OnChangeDir := OnChangeDirEvent;
+    try
+      FDirNode := TCanonDirNode.Create;
+      FDirNode.OnBeforeChangeDir := OnBeforeChangeDirEvent;
+      FDirNode.OnChangeDir := OnChangeDirEvent;
+      FDirNode.FillPanelItem;
+    except
+      raise;
+    end
+  else if RereadFindData then
+  begin
+    RereadFindData := False;
+    FDirNode.FreeSubDir;
+    FDirNode.ClearItems;
     FDirNode.FillPanelItem;
-  except
-    raise;
+    OnChangeDirEvent(FDirNode);
   end;
   PanelItem := FDirNode.PanelItem;
   ItemsNumber := FDirNode.ItemsNumber;
@@ -970,7 +977,8 @@ var
 begin
   Result := 0;
   if Assigned(FDirNode) and
-    not (FDirNode.IsRoot and (OpMode and OPM_FIND <> 0)) then
+    // Для OPM_FIND or OPM_SILENT отрабатывать из корневого каталога
+    ((OpMode and (OPM_FIND or OPM_SILENT) = 0) or not FDirNode.IsRoot) then
   begin
     NewDirNode := FDirNode.ChDir(Dir);
     if Assigned(NewDirNode) then
@@ -1071,9 +1079,9 @@ begin
     CheckEdsError(EdsOpenSession(session));
     CurrentSession := session;
     {EdsSetCameraStateEventHandler(session, kEdsStateEvent_All,
-      @EdsStateEventHandler, Cardinal(Sender));}
+      @EdsStateEventHandler, EdsUInt32(Sender));}
     {EdsSetCameraStateEventHandler(session, kEdsStateEvent_ShutDown,
-      @EdsStateEventHandler, Cardinal(Sender));}
+      @EdsStateEventHandler, EdsUInt32(Sender));}
     Inc(_SessionRefCount);
   end;
 end;
@@ -1282,7 +1290,7 @@ begin
           GetMem(PanelUserData, SizeOf(TPanelUserData));
           PanelUserData^.BaseRef := camera;
           PanelUserData^.BaseRefType := brtCamera;
-          UserData := Cardinal(PanelUserData);
+          UserData := DWORD_PTR(PanelUserData);
         end;
       end;
     except
@@ -1382,7 +1390,7 @@ begin
             GetMem(PanelUserData, SizeOf(TPanelUserData));
             PanelUserData^.BaseRef := dirItem;
             PanelUserData^.BaseRefType := brtDirItem;
-            UserData := Cardinal(PanelUserData);
+            UserData := DWORD_PTR(PanelUserData);
           end;
           if Assigned(ProgressBar) and not ProgressBar.UpdateProgress(i + 1) then
             Break;
@@ -1427,7 +1435,7 @@ begin
           GetMem(PanelUserData, SizeOf(TPanelUserData));
           PanelUserData^.BaseRef := volume;
           PanelUserData^.BaseRefType := brtVolume;
-          UserData := Cardinal(PanelUserData);
+          UserData := DWORD_PTR(PanelUserData);
         end;
       end;
     except
