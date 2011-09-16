@@ -20,37 +20,6 @@ const
   cSizeProgress = 52;
 
 type
-  TProgressBar = class
-  private
-    FLastPos, FLastPS: Integer;
-    FSaveScreen: THandle;
-    FMaxPos: Integer;
-    FTitle, FConsoleTitle: TFarString;
-    FLinesBefore, FLinesAfter: Integer;
-    FTitleBuf: array[0..cMaxBuf - 1] of TFarChar;
-    FEsc: Boolean;
-    FConfirmTitle, FConfirmText: PFarChar;
-    FSizeProgress: Integer;
-    FShowPs: Boolean;
-
-    function CheckForEsc: Boolean;
-  public
-    constructor Create(const aTitle: TFarString; aMaxPos: Integer;
-      aSizeProgress: Integer = cSizeProgress; aShowPs: Boolean = True;
-      aLinesBefore: Integer = 0; aLinesAfter: Integer = 0); overload;
-    constructor Create(const aTitle: TFarString; aMaxPos: Integer;
-      aEsc: Boolean; aConfirmTitle: PFarChar = nil; aConfirmText: PFarChar = nil;
-      aSizeProgress: Integer = cSizeProgress; aShowPs: Boolean = True;
-      aLinesBefore: Integer = 0; aLinesAfter: Integer = 0); overload;
-    destructor Destroy; override;
-    function UpdateProgress(aPos: Integer;
-      const TextBefore: TFarString = ''; const TextAfter: TFarString = ''): Boolean;
-    function IncProgress(AddPos: Integer = 1;
-      const TextBefore: TFarString = ''; const TextAfter: TFarString = ''): Boolean;
-    property LinesBefore: Integer read FLinesBefore;
-    property LinesAfter: Integer read FLinesAfter;
-  end;
-
   TProgressInit = record
     FMaxPos: Integer;
     FShowPs: Boolean;
@@ -95,6 +64,21 @@ type
     property LinesAfter: Integer read FLinesAfter;
   end;
 
+  TProgressBar = class(TMultiProgressBar)
+  public
+    constructor Create(const aTitle: TFarString; aMaxPos: Integer;
+      aSizeProgress: Integer = cSizeProgress; aShowPs: Boolean = True;
+      aLinesBefore: Integer = 0; aLinesAfter: Integer = 0); overload;
+    constructor Create(const aTitle: TFarString; aMaxPos: Integer;
+      aEsc: Boolean; aConfirmTitle: PFarChar = nil; aConfirmText: PFarChar = nil;
+      aSizeProgress: Integer = cSizeProgress; aShowPs: Boolean = True;
+      aLinesBefore: Integer = 0; aLinesAfter: Integer = 0); overload;
+    function UpdateProgress(aPos: Integer;
+      const TextBefore: TFarString = ''; const TextAfter: TFarString = ''): Boolean;
+    function IncProgress(AddPos: Integer = 1;
+      const TextBefore: TFarString = ''; const TextAfter: TFarString = ''): Boolean;
+  end;
+
 implementation
 
 const
@@ -119,202 +103,6 @@ const
   //chrHatch = #$B0;
   //chrBrick = #$DB;
   cFar = ' - Far';
-
- { TProgressBar }
-
-function TProgressBar.CheckForEsc: Boolean;
-var
-  rec: INPUT_RECORD;
-  hConInp: THandle;
-  ReadCount: DWORD;
-begin
-  Result := False;
-  hConInp := GetStdHandle(STD_INPUT_HANDLE);
-  repeat
-    PeekConsoleInput(hConInp, rec, 1, ReadCount);
-    if ReadCount = 0 then
-      Break;
-    ReadConsoleInput(hConInp, rec, 1, ReadCount);
-    if rec.EventType = KEY_EVENT then
-      if (rec.Event.KeyEvent.wVirtualKeyCode = VK_ESCAPE) and
-        rec.Event.KeyEvent.bKeyDown then
-      Result := True;
-  until False;
-end;
-
-constructor TProgressBar.Create(const aTitle: TFarString;
-  aMaxPos, aSizeProgress: Integer;
-  aShowPs: Boolean; aLinesBefore, aLinesAfter: Integer);
-var
-  i: Integer;
-  str: TFarString;
-begin
-  inherited Create;
-{$IFDEF UNICODE}
-  GetConsoleTitleW(FTitleBuf, cMaxBuf);
-  FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSSTATE,
-    Pointer(PS_NORMAL));
-{$ELSE}
-  GetConsoleTitleA(FTitleBuf, cMaxBuf);
-{$ENDIF}
-  FTitle := aTitle;
-  FConsoleTitle := FTitleBuf;
-  i := PosEx(cFar, FConsoleTitle);
-  if i > 0 then
-    Delete(FConsoleTitle, 1, i - 1);
-  FConsoleTitle := FTitle + FConsoleTitle;
-  FLastPS := -1;
-{$IFDEF UNICODE}
-  SetConsoleTitleW(PFarChar(FConsoleTitle));
-{$ELSE}
-  SetConsoleTitleA(PFarChar(FConsoleTitle));
-{$ENDIF}
-  FLinesBefore := aLinesBefore;
-  FLinesAfter := aLinesAfter;
-  FShowPs := aShowPs;
-  str := FTitle + #10;
-  for i := 0 to FLinesBefore - 1 do
-    str := str + #10;
-  FSizeProgress := aSizeProgress;
-  if FShowPs then
-    Dec(FSizeProgress, 5);
-  for i := 1 to FSizeProgress do
-    str := str + chrHatch;
-  if FShowPs then
-    str := str + '   0%';
-  str := str + #10;
-  for i := 0 to FLinesAfter - 1 do
-    str := str + #10;
-  FSaveScreen := FARAPI.SaveScreen(0, 0, -1, -1);
-  FARAPI.Message(FARAPI.ModuleNumber, FMSG_ALLINONE + FMSG_LEFTALIGN, nil,
-    PPCharArray(@str[1]), 0, 0);
-  FMaxPos := aMaxPos;
-  FLastPos := 0;
-  FEsc := False;
-end;
-
-constructor TProgressBar.Create(const aTitle: TFarString; aMaxPos: Integer;
-  aEsc: Boolean; aConfirmTitle, aConfirmText: PFarChar;
-  aSizeProgress: Integer; aShowPs: Boolean; aLinesBefore, aLinesAfter: Integer);
-begin
-  Create(aTitle, aMaxPos, aSizeProgress, aShowPs, aLinesBefore, aLinesAfter);
-  FEsc := aEsc;
-  if FEsc then
-  begin
-    FConfirmTitle := aConfirmTitle;
-    FConfirmText := aConfirmText;
-  end
-  else
-  begin
-    FConfirmTitle := nil;
-    FConfirmText := nil;
-  end;
-end;
-
-destructor TProgressBar.Destroy;
-begin
-{$IFDEF UNICODE}
-  SetConsoleTitleW(FTitleBuf);
-  FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSSTATE,
-    Pointer(PS_NOPROGRESS));
-  FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_PROGRESSNOTIFY, nil);
-{$ELSE}
-  SetConsoleTitleA(FTitleBuf);
-{$ENDIF}
-  FARAPI.RestoreScreen(FSaveScreen);
-  inherited;
-end;
-
-function TProgressBar.IncProgress(AddPos: Integer;
-  const TextBefore, TextAfter: TFarString): Boolean;
-var
-  pos: Integer;
-begin
-  if FLastPos < FMaxPos then
-  begin
-    pos := FLastPos + AddPos;
-    if pos > FMaxPos then
-      pos := FMaxPos;
-  end
-  else
-    pos := FMaxPos;
-  Result := UpdateProgress(pos, TextBefore, TextAfter);
-end;
-
-function TProgressBar.UpdateProgress(aPos: Integer;
-  const TextBefore, TextAfter: TFarString): Boolean;
-var
-  pos, ps: Integer;
-  str: TFarString;
-  i: Integer;
-{$IFDEF UNICODE}
-  pv: TProgressValue;
-{$ENDIF}
-begin
-  if aPos <> 0 then
-  begin
-    if FLastPos > FMaxPos then
-      FLastPos := FMaxPos;
-    if (FLastPos <> aPos) or
-      ((FLinesBefore > 0) and (TextBefore <> '')) or
-      ((FLinesAfter > 0) and (TextAfter <> '')) then
-    begin
-      ps := aPos * 100 div FMaxPos;
-      FLastPos := aPos;
-      pos := aPos * FSizeProgress div FMaxPos;
-      str := FTitle + #10;
-      if FLinesBefore > 0 then
-         str := str + TextBefore + #10;
-      if pos <> 0 then
-        for i := 1 to pos do
-          str := str + chrBrick;
-      if pos <> FSizeProgress then
-        for i := pos + 1 to FSizeProgress do
-          str := str + chrHatch;
-      if FShowPs then
-        str := str + Format(' %3d%%', [ps]);
-      str := str + #10;
-      if FLinesAfter > 0 then
-         str := str + TextAfter;
-      FARAPI.Message(FARAPI.ModuleNumber, FMSG_ALLINONE + FMSG_LEFTALIGN, nil,
-        PPCharArray(@str[1]), 0, 0);
-      if FLastPS <> ps then
-{$IFDEF UNICODE}
-      begin
-        SetConsoleTitleW(PFarChar('{' + Int2Str(ps) + '%} ' + FConsoleTitle));
-        pv.Completed := aPos;
-        pv.Total := FMaxPos;
-        FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSVALUE, @pv);
-      end;
-{$ELSE}
-        SetConsoleTitleA(PFarChar('{' + Int2Str(ps) + '%} ' + FConsoleTitle));
-{$ENDIF}
-    end;
-  end;
-  Result := not (FEsc and CheckForEsc);
-  if not Result then
-  begin
-    if Assigned(FConfirmTitle) then
-    begin
-{$IFDEF UNICODE}
-      FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSSTATE,
-        Pointer(PS_PAUSED));
-      try
-{$ENDIF}
-        Result := ShowMessage(FConfirmTitle, FConfirmText,
-          FMSG_WARNING + FMSG_MB_YESNO) <> 0;
-{$IFDEF UNICODE}
-      finally
-        FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSSTATE,
-          Pointer(PS_NORMAL));
-        pv.Completed := aPos;
-        pv.Total := FMaxPos;
-        FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSVALUE, @pv);
-      end;
-{$ENDIF}
-    end;
-  end;
-end;
 
 { TMultiProgressBar }
 
@@ -526,6 +314,58 @@ begin
 {$ENDIF}
     end;
   end;
+end;
+
+{ TProgressBar }
+
+constructor TProgressBar.Create(const aTitle: TFarString; aMaxPos,
+  aSizeProgress: Integer; aShowPs: Boolean; aLinesBefore,
+  aLinesAfter: Integer);
+var
+  Init: TProgressInitArray;
+begin
+  SetLength(Init, 1);
+  Init[0].FMaxPos := aMaxPos;
+  Init[0].FShowPs := aShowPs;
+  Init[0].FLines := aLinesBefore;
+  inherited Create(aTitle, Init, aSizeProgress, 0, aLinesAfter);
+end;
+
+constructor TProgressBar.Create(const aTitle: TFarString; aMaxPos: Integer;
+  aEsc: Boolean; aConfirmTitle, aConfirmText: PFarChar;
+  aSizeProgress: Integer; aShowPs: Boolean; aLinesBefore,
+  aLinesAfter: Integer);
+var
+  Init: TProgressInitArray;
+begin
+  SetLength(Init, 1);
+  Init[0].FMaxPos := aMaxPos;
+  Init[0].FShowPs := aShowPs;
+  Init[0].FLines := aLinesBefore;
+  inherited Create(aTitle, Init, aEsc, aConfirmTitle, aConfirmText,
+    aSizeProgress, 0, aLinesAfter);
+end;
+
+function TProgressBar.IncProgress(AddPos: Integer; const TextBefore,
+  TextAfter: TFarString): Boolean;
+var
+  Data: TProgressInfoArray;
+begin
+  SetLength(Data, 1);
+  Data[0].FPos := AddPos;
+  Data[0].FText := TextBefore;
+  Result := inherited IncProgress(Data, TextAfter);
+end;
+
+function TProgressBar.UpdateProgress(aPos: Integer; const TextBefore,
+  TextAfter: TFarString): Boolean;
+var
+  Data: TProgressInfoArray;
+begin
+  SetLength(Data, 1);
+  Data[0].FPos := aPos;
+  Data[0].FText := TextBefore;
+  Result := inherited UpdateProgress(Data, TextAfter);
 end;
 
 end.
