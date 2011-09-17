@@ -25,12 +25,10 @@ type
     FShowPs: Boolean;
     FLines: Integer;
   end;
-  TProgressInitArray = array of TProgressInit;
   TProgressInfo = record
     FPos: Integer;
     FText: TFarString;
   end;
-  TProgressInfoArray = array of TProgressInfo;
   TProgressData = record
     FInit: TProgressInit;
     FLastPos, FLastPS, FSizeProgress: Integer;
@@ -49,17 +47,17 @@ type
 
     function CheckForEsc: Boolean;
   public
-    constructor Create(const aTitle: TFarString; const aInit: TProgressInitArray;
+    constructor Create(const aTitle: TFarString; const aInit: array of TProgressInit;
       aSizeProgress: Integer = cSizeProgress; aTotalIndex: Integer = -1;
       aLinesAfter: Integer = 0); overload;
-    constructor Create(const aTitle: TFarString; const aInit: TProgressInitArray;
+    constructor Create(const aTitle: TFarString; const aInit: array of TProgressInit;
       aEsc: Boolean; aConfirmTitle: PFarChar = nil; aConfirmText: PFarChar = nil;
       aSizeProgress: Integer = cSizeProgress; aTotalIndex: Integer = -1;
       aLinesAfter: Integer = 0); overload;
     destructor Destroy; override;
-    function UpdateProgress(const aData: TProgressInfoArray;
+    function UpdateProgress(const aData: array of TProgressInfo;
       const TextAfter: TFarString = ''): Boolean;
-    function IncProgress(const aData: TProgressInfoArray;
+    function IncProgress(const aData: array of TProgressInfo;
       const TextAfter: TFarString = ''): Boolean;
     property LinesAfter: Integer read FLinesAfter;
   end;
@@ -75,7 +73,7 @@ type
       aLinesBefore: Integer = 0; aLinesAfter: Integer = 0); overload;
     function UpdateProgress(aPos: Integer;
       const TextBefore: TFarString = ''; const TextAfter: TFarString = ''): Boolean;
-    function IncProgress(AddPos: Integer = 1;
+    function IncProgress(aPos: Integer = 1;
       const TextBefore: TFarString = ''; const TextAfter: TFarString = ''): Boolean;
   end;
 
@@ -99,15 +97,12 @@ const
   chrBrick    = #$DB;
   chrCheck    = #$FB;
 {$ENDIF}
-
-  //chrHatch = #$B0;
-  //chrBrick = #$DB;
   cFar = ' - Far';
 
 { TMultiProgressBar }
 
 constructor TMultiProgressBar.Create(const aTitle: TFarString;
-  const aInit: TProgressInitArray;
+  const aInit: array of TProgressInit;
   aSizeProgress, aTotalIndex, aLinesAfter: Integer);
 var
   i, j: Integer;
@@ -186,7 +181,7 @@ begin
 end;
 
 constructor TMultiProgressBar.Create(const aTitle: TFarString;
-  const aInit: TProgressInitArray; aEsc: Boolean; aConfirmTitle,
+  const aInit: array of TProgressInit; aEsc: Boolean; aConfirmTitle,
   aConfirmText: PFarChar; aSizeProgress, aTotalIndex, aLinesAfter: Integer);
 begin
   Create(aTitle, aInit, aSizeProgress, aLinesAfter);
@@ -218,26 +213,29 @@ begin
   inherited;
 end;
 
-function TMultiProgressBar.IncProgress(const aData: TProgressInfoArray;
+function TMultiProgressBar.IncProgress(const aData: array of TProgressInfo;
   const TextAfter: TFarString): Boolean;
 var
   i: Integer;
+  Data: array of TProgressInfo;
 begin
+  SetLength(Data, Length(aData));
   for i := 0 to Length(aData) - 1 do
   begin
+    Data[i] := aData[i];
     if FProgressData[i].FLastPos < FProgressData[i].FInit.FMaxPos then
     begin
-      aData[i].FPos := FProgressData[i].FLastPos + aData[i].FPos;
-      if aData[i].FPos > FProgressData[i].FInit.FMaxPos then
-        aData[i].FPos := FProgressData[i].FInit.FMaxPos;
+      Data[i].FPos := FProgressData[i].FLastPos + Data[i].FPos;
+      if Data[i].FPos > FProgressData[i].FInit.FMaxPos then
+        Data[i].FPos := FProgressData[i].FInit.FMaxPos;
     end
     else
-      aData[i].FPos := FProgressData[i].FInit.FMaxPos;
+      Data[i].FPos := FProgressData[i].FInit.FMaxPos;
   end;
-  Result := UpdateProgress(aData, TextAfter);
+  Result := UpdateProgress(Data, TextAfter);
 end;
 
-function TMultiProgressBar.UpdateProgress(const aData: TProgressInfoArray;
+function TMultiProgressBar.UpdateProgress(const aData: array of TProgressInfo;
   const TextAfter: TFarString): Boolean;
 var
   pos, ps: Integer;
@@ -253,9 +251,10 @@ begin
     begin
       if FProgressData[j].FLastPos > FProgressData[j].FInit.FMaxPos then
         FProgressData[j].FLastPos := FProgressData[j].FInit.FMaxPos;
-      {if (FProgressData[j].FLastPos <> aData[j].FPos) or
-        ((FLinesBefore > 0) and (TextBefore <> '')) or
-        ((FLinesAfter > 0) and (TextAfter <> '')) then}
+      if (FProgressCount > 1) or
+        (FProgressData[j].FLastPos <> aData[j].FPos) or
+        ((FProgressData[j].FInit.FLines > 0) and (aData[j].FText <> '')) or
+        ((FLinesAfter > 0) and (TextAfter <> '')) then
       begin
         ps := aData[j].FPos * 100 div FProgressData[j].FInit.FMaxPos;
         FProgressData[j].FLastPos := aData[j].FPos;
@@ -322,9 +321,8 @@ constructor TProgressBar.Create(const aTitle: TFarString; aMaxPos,
   aSizeProgress: Integer; aShowPs: Boolean; aLinesBefore,
   aLinesAfter: Integer);
 var
-  Init: TProgressInitArray;
+  Init: array [0..0] of TProgressInit;
 begin
-  SetLength(Init, 1);
   Init[0].FMaxPos := aMaxPos;
   Init[0].FShowPs := aShowPs;
   Init[0].FLines := aLinesBefore;
@@ -336,9 +334,8 @@ constructor TProgressBar.Create(const aTitle: TFarString; aMaxPos: Integer;
   aSizeProgress: Integer; aShowPs: Boolean; aLinesBefore,
   aLinesAfter: Integer);
 var
-  Init: TProgressInitArray;
+  Init: array [0..0] of TProgressInit;
 begin
-  SetLength(Init, 1);
   Init[0].FMaxPos := aMaxPos;
   Init[0].FShowPs := aShowPs;
   Init[0].FLines := aLinesBefore;
@@ -346,13 +343,12 @@ begin
     aSizeProgress, 0, aLinesAfter);
 end;
 
-function TProgressBar.IncProgress(AddPos: Integer; const TextBefore,
+function TProgressBar.IncProgress(aPos: Integer; const TextBefore,
   TextAfter: TFarString): Boolean;
 var
-  Data: TProgressInfoArray;
+  Data: array [0..0] of TProgressInfo;
 begin
-  SetLength(Data, 1);
-  Data[0].FPos := AddPos;
+  Data[0].FPos := aPos;
   Data[0].FText := TextBefore;
   Result := inherited IncProgress(Data, TextAfter);
 end;
@@ -360,9 +356,8 @@ end;
 function TProgressBar.UpdateProgress(aPos: Integer; const TextBefore,
   TextAfter: TFarString): Boolean;
 var
-  Data: TProgressInfoArray;
+  Data: array [0..0] of TProgressInfo;
 begin
-  SetLength(Data, 1);
   Data[0].FPos := aPos;
   Data[0].FText := TextBefore;
   Result := inherited UpdateProgress(Data, TextAfter);
