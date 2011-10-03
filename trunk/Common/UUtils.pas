@@ -50,6 +50,7 @@ function KeyExists(const key: TFarString): Boolean;
 function ValueExists(const name, key: TFarString): Boolean;
 
 function ReadRegDWORDValue(const name, key: TFarString; default: DWORD): DWORD;
+procedure WriteRegDWORDValue(const name, key: TFarString; value: DWORD);
 
 function ReadRegStringValue(const name, key, default: TFarString): TFarString;
 procedure WriteRegStringValue(const name, key, value: TFarString);
@@ -69,6 +70,7 @@ function MoveRegKey_(const srckey, dstkey: TFarString; copy: Boolean): Boolean;
 function KeyExists_(const key: TFarString): Boolean;
 function ValueExists_(const name, key: TFarString): Boolean;
 function ReadRegDWORDValue_(const name, key: TFarString; default: DWORD): DWORD;
+procedure WriteRegDWORDValue_(const name, key: TFarString; value: DWORD);
 function ReadRegStringValue_(const name, key, default: TFarString): TFarString;
 procedure WriteRegStringValue_(const name, key, value: TFarString);
 procedure DeleteRegValue_(const name, key: TFarString);
@@ -94,6 +96,7 @@ function NewID: String;
 function Format(const fmt: TFarString; params: array of const): TFarString;
 function itoa64(Value: Int64): TFarString;
 function FormatFileSize(Value: Int64): TFarString;
+function Format3(Value: Int64): TFarString;
 
 function AddEndSlash(const path: TFarString): TFarString;
 
@@ -212,7 +215,7 @@ end;
 function ReadRegDWORDValue(const name, key: TFarString; default: DWORD): DWORD;
 {$IFNDEF UNICODE}
 begin
-  Result := ReadRegStringValue_(OemToCharStr(name), OemToCharStr(key), default);
+  Result := ReadRegDWORDValue_(OemToCharStr(name), OemToCharStr(key), default);
 end;
 
 function ReadRegDWORDValue_(const name, key: TFarString; default: DWORD): DWORD;
@@ -252,6 +255,40 @@ begin
         finally
         end;
       end;
+    finally
+      RegCloseKey(TempKey);
+    end;
+  end;
+end;
+
+procedure WriteRegDWORDValue(const name, key: TFarString; value: DWORD);
+{$IFNDEF UNICODE}
+begin
+  WriteRegDWORDValue_(OemToCharStr(name), OemToCharStr(key), value);
+end;
+
+procedure WriteRegDWORDValue_(const name, key: TFarString; value: DWORD);
+{$ENDIF}
+var
+  TempKey: HKEY;
+  disp: DWORD;
+begin
+{$IFDEF UNICODE}
+  if RegCreateKeyExW(HKEY_CURRENT_USER, PFarChar(key), 0, nil,
+    REG_OPTION_NON_VOLATILE, KEY_WRITE, nil, TempKey, @disp) = ERROR_SUCCESS then
+{$ELSE}
+  if RegCreateKeyExA(HKEY_CURRENT_USER, PFarChar(key), 0, nil,
+    REG_OPTION_NON_VOLATILE, KEY_WRITE, nil, TempKey, @disp) = ERROR_SUCCESS then
+{$ENDIF}
+  begin
+    try
+{$IFDEF UNICODE}
+      RegSetValueExW(TempKey, PFarChar(name), 0, REG_DWORD, PByte(value),
+        SizeOf(value));
+{$ELSE}
+      RegSetValueExA(TempKey, PFarChar(name), 0, REG_DWORD, PByte(value),
+        SizeOf(value));
+{$ENDIF}
     finally
       RegCloseKey(TempKey);
     end;
@@ -768,6 +805,21 @@ begin
     end;
   {end;}
   Result := Format('%u %s', [Cardinal(Value), Suffix]);
+end;
+
+function Format3(Value: Int64): TFarString;
+var
+  intvalue: Integer;
+begin
+  Result := '';
+  while Value > 1000 do
+  begin
+    intvalue := Value mod 1000;
+    Result := ' ' + Format('%03d', [intvalue]) + Result;
+    Value := Value div 1000;
+  end;
+  intvalue := Value;
+  Result := Format('%d', [intvalue]) + Result;
 end;
 
 function AddEndSlash(const path: TFarString): TFarString;

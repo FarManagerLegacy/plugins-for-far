@@ -38,6 +38,10 @@ type
     MMoveItemsTo,
     MMoving,
 
+    MScanning,
+    MTotal,
+    MFilesProcessed,
+
     MDeleteTitle,
     MDeleteFilesTitle,
     MDeleteFolder,
