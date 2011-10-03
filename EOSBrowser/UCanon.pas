@@ -92,11 +92,11 @@ type
 
     procedure RecursiveDownload(dirItem: EdsDirectoryItemRef;
       const DestPath: TFarString; Move: Integer; Silent: Boolean;
-      ProgressBar: TProgressBar;
+      ProgressBar: TMultiProgressBar;
       var overall, skipall, overroall, skiproall: Boolean);
     procedure DownloadFile(dirItem: EdsDirectoryItemRef;
       dirInfo: PEdsDirectoryItemInfo; DestPath: TFarString; Move: Integer;
-      Silent: Boolean; ProgressBar: TProgressBar; attrib: Cardinal;
+      Silent: Boolean; ProgressBar: TMultiProgressBar; attrib: Cardinal;
       var overall, skipall, overroall, skiproall, skipfile: Boolean);
     procedure DeleteDirItem(dirItem: EdsDirectoryItemRef;
       dirInfo: PEdsDirectoryItemInfo; OpMode: Integer;
@@ -208,18 +208,33 @@ end;
 type
   PContextData = ^TContextData;
   TContextData = record
-    FProgressBar: TProgressBar;
-    FText: TFarString;
+    FProgressBar: TMultiProgressBar;
+    FText, FText2, FTextAfter: TFarString;
+    FPos2: Integer;
   end;
 
 function EdsProgressCallback(inPercent: EdsUInt32; inContext: Pointer;
   var outCancel: EdsBool): EdsError; stdcall;
+var
+  ProgressInfo: array[0..1] of TProgressInfo;
 begin
   with PContextData(inContext)^ do
-    if not FProgressBar.UpdateProgress(inPercent, FText) then
-      Result := EDS_ERR_OPERATION_CANCELLED
+  begin
+    ProgressInfo[0].FPos := inPercent;
+    ProgressInfo[0].FText := FText;
+    if FProgressBar.ProgressCount > 1 then
+    begin
+      ProgressInfo[1].FPos := FPos2;
+      ProgressInfo[1].FText := FText2;
+    end;
+    if not FProgressBar.UpdateProgress(ProgressInfo, FTextAfter) then
+    begin
+      outCancel := 1;
+      Result := EDS_ERR_OPERATION_CANCELLED;
+    end
     else
       Result := EDS_ERR_OK;
+  end;
 end;
 
 function EdsStateEventHandler(inEvent: EdsStateEvent; inParamter: EdsUInt32;
@@ -440,13 +455,21 @@ end;
 
 function TCanon.GetFiles(PanelItem: PPluginPanelItem; ItemsNumber, Move: Integer;
   {$IFDEF UNICODE}var{$ENDIF} DestPath: PFarChar; OpMode: Integer): Integer;
+const
+  cCopyShowTotal = 'CopyShowTotal';
+  cInterface = 'Interface';
+  cInit: array[0..1] of TProgressInit = (
+    (FMaxPos: 100; FShowPs: True; FLines: 4),
+    (FMaxPos: 100; FShowPs: True; FLines: 1)
+  );
 var
   UserData: PPanelUserData;
   i: Integer;
   title: PFarChar;
   subtitle: TFarString;
   dirInfo: EdsDirectoryItemInfo;
-  ProgressBar: TProgressBar;
+  ProgressBar: TMultiProgressBar;
+  Init: array[0..1] of TProgressInit;
   silent: Boolean;
   overall, skipall, overroall, skiproall, skipfile: Boolean;
   NewDestPath: array [0..MAX_PATH - 1] of TFarCHar;
@@ -499,6 +522,7 @@ begin
 {$ENDIF}
       if not DirectoryExists(NewDestPath) and not ForceDirectories(NewDestPath) then
         raise Exception.CreateCustom(EDS_ERR_DIR_NOT_FOUND, '');
+      ProgressBar := nil;
       if not silent then
       begin
         if FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_GETCONFIRMATIONS, nil) and
@@ -512,11 +536,22 @@ begin
           FInterruptTitle := nil;
           FInterruptText := nil;
         end;
-        ProgressBar := TProgressBar.Create(title, 100, True,
-          FInterruptTitle, FInterruptText, cSizeProgress, True, 4)
-      end
-      else
-        ProgressBar := nil;
+        Init[0].FMaxPos := 100;
+        Init[0].FShowPs := True;
+        Init[0].FLines := 4;
+        if ReadRegDWORDValue(cCopyShowTotal, FarRootKey + cDelim + cInterface,
+            0) <> 0 then
+        begin
+          Init[1].FMaxPos := 100;
+          Init[1].FShowPs := True;
+          Init[1].FLines := 1;
+          ProgressBar := TMultiProgressBar.Create(title, Init, True,
+            FInterruptTitle, FInterruptText, cSizeProgress, 2, -1, 2);
+        end
+        else
+          ProgressBar := TMultiProgressBar.Create(title, Init, True,
+            FInterruptTitle, FInterruptText, cSizeProgress, 1)
+      end;
       try
         if Move <> 0 then
           overall := FARAPI.AdvControl(FARAPI.ModuleNumber,
@@ -581,7 +616,7 @@ end;
 
 procedure TCanon.DownloadFile(dirItem: EdsDirectoryItemRef;
   dirInfo: PEdsDirectoryItemInfo; DestPath: TFarString; Move: Integer;
-  Silent: Boolean; ProgressBar: TProgressBar; attrib: Cardinal;
+  Silent: Boolean; ProgressBar: TMultiProgressBar; attrib: Cardinal;
   var overall, skipall, overroall, skiproall, skipfile: Boolean);
 var
   stream: EdsStreamRef;
@@ -690,17 +725,25 @@ begin
     try
       if not Silent then
       begin
+        FromNameL := Copy(FromName, 1, Length(FromName));
+        ToNameL := Copy(ToName, 1, Length(ToName));
+        FSF.TruncPathStr(PFarChar(FromNameL), cSizeProgress);
+        FSF.TruncPathStr(PFarChar(ToNameL), cSizeProgress);
         with ContextData do
         begin
-          FromNameL := Copy(FromName, 1, Length(FromName));
-          ToNameL := Copy(ToName, 1, Length(ToName));
-          FSF.TruncPathStr(PFarChar(FromNameL), cSizeProgress);
-          FSF.TruncPathStr(PFarChar(ToNameL), cSizeProgress);
+          FProgressBar := ProgressBar;
           if Move <> 0 then
             FText := Format(GetMsg(MMoving), [FromNameL, ToNameL])
           else
             FText := Format(GetMsg(MCopying), [FromNameL, ToNameL]);
-          FProgressBar := ProgressBar;
+          if ProgressBar.ProgressCount = 1 then
+            FTextAfter := ''
+          else
+          begin
+            FPos2 := 0;
+            FText2 := #1' Total: 111 222 ';
+            FTextAfter := #1#10'Files processed: 1 of 1';
+          end;
         end;
         CheckEdsError(EdsSetProgressCallback(stream, @EdsProgressCallback,
           kEdsProgressOption_Periodically, EdsUInt32(@ContextData)));
@@ -766,7 +809,7 @@ end;
 
 procedure TCanon.RecursiveDownload(dirItem: EdsDirectoryItemRef;
   const DestPath: TFarString; Move: Integer; Silent: Boolean;
-  ProgressBar: TProgressBar;
+  ProgressBar: TMultiProgressBar;
   var overall, skipall, overroall, skiproall: Boolean);
 var
   count, i: EdsUInt32;
@@ -1337,8 +1380,8 @@ begin
           FInterruptTitle := nil;
           FInterruptText := nil;
         end;
-        ProgressBar := TProgressBar.Create(GetMsg(MReading), count, True,
-          FInterruptTitle, FInterruptText)
+        ProgressBar := TProgressBar.Create(GetMsg(MReading), True, count, 0,
+          True, 0, FInterruptTitle, FInterruptText)
       end
       else
         ProgressBar := nil;
