@@ -48,6 +48,9 @@ function MoveRegKey(const srckey, dstkey: TFarString; copy: Boolean): Boolean;
 
 function KeyExists(const key: TFarString): Boolean;
 function ValueExists(const name, key: TFarString): Boolean;
+
+function ReadRegDWORDValue(const name, key: TFarString; default: DWORD): DWORD;
+
 function ReadRegStringValue(const name, key, default: TFarString): TFarString;
 procedure WriteRegStringValue(const name, key, value: TFarString);
 procedure DeleteRegValue(const name, key: TFarString);
@@ -65,6 +68,7 @@ function MoveRegKey_(const srckey, dstkey: TFarString; copy: Boolean): Boolean;
 
 function KeyExists_(const key: TFarString): Boolean;
 function ValueExists_(const name, key: TFarString): Boolean;
+function ReadRegDWORDValue_(const name, key: TFarString; default: DWORD): DWORD;
 function ReadRegStringValue_(const name, key, default: TFarString): TFarString;
 procedure WriteRegStringValue_(const name, key, value: TFarString);
 procedure DeleteRegValue_(const name, key: TFarString);
@@ -104,6 +108,7 @@ procedure FreeAndNil(var Obj);
 procedure FreeAndNilKol(var Obj); 
 function StringReplace(const S, OldPattern, NewPattern: TFarString;
   ReplaceAll: Boolean): TFarString;
+function FarRootKey: TFarString;
 
 {.$DEFINE OUT_LOG}
 {$IFDEF RELEASE}
@@ -198,6 +203,55 @@ begin
       Result := RegQueryValueExA(TempKey, PFarChar(name), nil, nil, nil, nil) =
         ERROR_SUCCESS;
 {$ENDIF}
+    finally
+      RegCloseKey(TempKey);
+    end;
+  end;
+end;
+
+function ReadRegDWORDValue(const name, key: TFarString; default: DWORD): DWORD;
+{$IFNDEF UNICODE}
+begin
+  Result := ReadRegStringValue_(OemToCharStr(name), OemToCharStr(key), default);
+end;
+
+function ReadRegDWORDValue_(const name, key: TFarString; default: DWORD): DWORD;
+{$ENDIF}
+var
+  TempKey: HKEY;
+  bufsize: DWORD;
+  datatype: DWORD;
+begin
+  Result := default;
+{$IFDEF UNICODE}
+  if RegOpenKeyExW(HKEY_CURRENT_USER, PFarChar(key), 0, KEY_READ,
+    TempKey) = ERROR_SUCCESS then
+{$ELSE}
+  if RegOpenKeyExA(HKEY_CURRENT_USER, PFarChar(key), 0, KEY_READ,
+    TempKey) = ERROR_SUCCESS then
+{$ENDIF}
+  begin
+    try
+      datatype := REG_DWORD;
+{$IFDEF UNICODE}
+      if RegQueryValueExW(TempKey, PFarChar(name), nil, @datatype, nil,
+        @bufsize) = ERROR_SUCCESS then
+{$ELSE}
+      if RegQueryValueExA(TempKey, PFarChar(name), nil, @datatype, nil,
+        @bufsize) = ERROR_SUCCESS then
+{$ENDIF}
+      begin
+        try
+{$IFDEF UNICODE}
+          if RegQueryValueExW(TempKey, PFarChar(name), nil, @datatype,
+              PByte(@Result), @bufsize) = ERROR_SUCCESS then
+{$ELSE}
+          if RegQueryValueExA(TempKey, PFarChar(name), nil, @datatype,
+              PByte(@Result), @bufsize) = ERROR_SUCCESS then
+{$ENDIF}
+        finally
+        end;
+      end;
     finally
       RegCloseKey(TempKey);
     end;
@@ -858,6 +912,11 @@ begin
     end;
     SearchStr := Copy(SearchStr, Offset + Length(Patt), MaxInt);
   end;
+end;
+
+function FarRootKey: TFarString;
+begin
+  Result := Copy(FARAPI.RootKey, 1, DelimiterLast(FARAPI.RootKey, cDelim) - 1);
 end;
 
 function TStringArray.GetString: TFarString;
