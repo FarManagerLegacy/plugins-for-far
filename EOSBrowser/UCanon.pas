@@ -83,6 +83,9 @@ type
     FCameraInfo: TCameraInfo;
     FVolumeInfo: TVolumeInfo;
     FRereadFindData: Boolean;
+
+    FTotalFiles, FCurFile: Cardinal;
+    FTotalFilesSize, FCurTotalFilesSize: Int64;
   private
     class procedure LoadLib(const FileName: TFarString);
     class procedure FreeLib;
@@ -107,6 +110,8 @@ type
     procedure OnCameraDisconnect;
     procedure OnBeforeChangeDirEvent(ADirNode: TDirNode; var Allow: Boolean);
     procedure OnChangeDirEvent(ADirNode: TDirNode);
+    function CountFiles(PanelItem: PPluginPanelItem; ItemsNumber, Move: Integer;
+      var TotalFiles: Cardinal; var TotalFilesSize: Int64): Boolean;
   public
     constructor Create(const FileName: TFarString);
     destructor Destroy; override;
@@ -210,7 +215,7 @@ type
   TContextData = record
     FProgressBar: TMultiProgressBar;
     FText, FText2, FTextAfter: TFarString;
-    FPos2: Integer;
+    FFileSize, FFilesSize: Cardinal;
   end;
 
 function EdsProgressCallback(inPercent: EdsUInt32; inContext: Pointer;
@@ -224,7 +229,7 @@ begin
     ProgressInfo[0].FText := FText;
     if FProgressBar.ProgressCount > 1 then
     begin
-      ProgressInfo[1].FPos := FPos2;
+      ProgressInfo[1].FPos := FFilesSize + FFileSize * inPercent div 100;
       ProgressInfo[1].FText := FText2;
     end;
     if not FProgressBar.UpdateProgress(ProgressInfo, FTextAfter) then
@@ -453,15 +458,84 @@ begin
   end;
 end;
 
+function TCanon.CountFiles(PanelItem: PPluginPanelItem; ItemsNumber, Move: Integer;
+  var TotalFiles: Cardinal; var TotalFilesSize: Int64): Boolean;
+  ////////////////////////////////////////////////////////
+  procedure CountChildFiles(dirItem: EdsDirectoryItemRef);
+  var
+    i: Integer;
+    count: EdsUInt32;
+    childRef: EdsDirectoryItemRef;
+    childInfo: EdsDirectoryItemInfo;
+  begin
+    CheckEdsError(EdsGetChildCount(dirItem, count));
+    if count > 0 then
+      for i := 0 to count - 1 do
+      begin
+        CheckEdsError(EdsGetChildAtIndex(dirItem, i, childRef));
+        CheckEdsError(EdsGetDirectoryItemInfo(childRef, childInfo));
+        try
+          if childInfo.isFolder <> 0 then
+            CountChildFiles(childRef)
+          else
+          begin
+            Inc(TotalFiles);
+            Inc(TotalFilesSize, childInfo.size);
+          end;
+        finally
+          EdsRelease(childRef);
+        end;
+      end;
+  end;
+var
+  i: Integer;
+  SaveScreen: THandle;
+  str: TFarString;
+begin
+  Result := True;
+  TotalFiles := 0;
+  TotalFilesSize := 0;
+  SaveScreen := FARAPI.SaveScreen(0, 0, -1, -1);
+  try
+    try
+      for i := 0 to ItemsNumber - 1 do
+        with TPluginPanelItemArray(PanelItem)[i] do
+        begin
+          if FindData.dwFileAttributes and FILE_ATTRIBUTE_DIRECTORY <> 0 then
+          begin
+            if Move = 0 then
+              str := GetMsgStr(MCopy)
+            else
+              str := GetMsgStr(MMove);
+            str := str + #10 + GetMsgStr(MScanning) + #10 +
+              Copy(FindData.cFileName + StrRepeat(' ', 50), 1, 50);
+            FARAPI.Message(FARAPI.ModuleNumber, FMSG_ALLINONE + FMSG_LEFTALIGN,
+              nil, PPCharArray(@str[1]), 0, 0);
+            CountChildFiles(PPanelUserData(UserData)^.BaseRef)
+          end
+          else
+          begin
+            Inc(TotalFiles);
+{$IFDEF UNICODE}
+            Inc(TotalFilesSize, FindData.nFileSize);
+{$ELSE}
+            Inc(TotalFilesSize, FindData.nFileSizeLow);
+{$ENDIF}
+          end;
+        end;
+    except
+      Result := False;
+    end;
+  finally
+    FARAPI.RestoreScreen(SaveScreen);
+  end;
+end;
+
 function TCanon.GetFiles(PanelItem: PPluginPanelItem; ItemsNumber, Move: Integer;
   {$IFDEF UNICODE}var{$ENDIF} DestPath: PFarChar; OpMode: Integer): Integer;
 const
   cCopyShowTotal = 'CopyShowTotal';
   cInterface = 'Interface';
-  cInit: array[0..1] of TProgressInit = (
-    (FMaxPos: 100; FShowPs: True; FLines: 4),
-    (FMaxPos: 100; FShowPs: True; FLines: 1)
-  );
 var
   UserData: PPanelUserData;
   i: Integer;
@@ -539,12 +613,15 @@ begin
         Init[0].FMaxPos := 100;
         Init[0].FShowPs := True;
         Init[0].FLines := 4;
-        if ReadRegDWORDValue(cCopyShowTotal, FarRootKey + cDelim + cInterface,
-            0) <> 0 then
+        if (ReadRegDWORDValue(cCopyShowTotal, FarRootKey + cDelim + cInterface,
+            0) <> 0) and
+          CountFiles(PanelItem, ItemsNumber, Move, FTotalFiles, FTotalFilesSize) then
         begin
-          Init[1].FMaxPos := 100;
+          Init[1].FMaxPos := FTotalFilesSize;
           Init[1].FShowPs := True;
           Init[1].FLines := 1;
+          FCurFile := 0;
+          FCurTotalFilesSize := 0;
           ProgressBar := TMultiProgressBar.Create(title, Init, True,
             FInterruptTitle, FInterruptText, cSizeProgress, 2, -1, 2);
         end
@@ -740,9 +817,14 @@ begin
             FTextAfter := ''
           else
           begin
-            FPos2 := 0;
-            FText2 := #1' Total: 111 222 ';
-            FTextAfter := #1#10'Files processed: 1 of 1';
+            FFileSize := dirInfo^.size;
+            FFilesSize := FCurTotalFilesSize;
+            FText2 := #1 + ' ' +
+              Format(GetMsg(MTotal), [Format3(FTotalFilesSize)]) + ' ';
+            FTextAfter := #1#10 + ' ' +
+              Format(GetMsg(MFilesProcessed), [FCurFile, FTotalFiles]) + ' ';
+            Inc(FCurFile);
+            Inc(FCurTotalFilesSize, FFileSize);
           end;
         end;
         CheckEdsError(EdsSetProgressCallback(stream, @EdsProgressCallback,

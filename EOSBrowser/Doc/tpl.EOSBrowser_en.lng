@@ -24,6 +24,10 @@
 "Move %d items to:"
 "Moving the file\n%s\nto\n%s"
 
+"Scanning folders..."
+"Total: %s"
+"Files processed: %d of %d"
+
 "Delete"
 "Delete files"
 "Do you wish to delete the folder\n%s"

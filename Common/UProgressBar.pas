@@ -21,17 +21,18 @@ const
 
 type
   TProgressInit = record
-    FMaxPos: Integer;
+    FMaxPos: Int64;
     FShowPs: Boolean;
     FLines: Integer;
   end;
   TProgressInfo = record
-    FPos: Integer;
+    FPos: Int64;
     FText: TFarString;
   end;
   TProgressData = record
     FInit: TProgressInit;
-    FLastPos, FLastPS, FSizeProgress: Integer;
+    FLastPos: Int64;
+    FLastPS, FSizeProgress: Integer;
   end;
   TMultiProgressBar = class
   private
