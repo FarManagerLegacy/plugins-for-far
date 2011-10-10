@@ -95,11 +95,12 @@ type
 
     procedure RecursiveDownload(dirItem: EdsDirectoryItemRef;
       const DestPath: TFarString; Move: Integer; Silent: Boolean;
-      ProgressBar: TMultiProgressBar;
+      ProgressBar: TMultiProgressBar; CreateSubDirs: Boolean;
       var overall, skipall, overroall, skiproall: Boolean);
     procedure DownloadFile(dirItem: EdsDirectoryItemRef;
       dirInfo: PEdsDirectoryItemInfo; DestPath: TFarString; Move: Integer;
       Silent: Boolean; ProgressBar: TMultiProgressBar; attrib: Cardinal;
+      CreateSubDirs: Boolean;
       var overall, skipall, overroall, skiproall, skipfile: Boolean);
     procedure DeleteDirItem(dirItem: EdsDirectoryItemRef;
       dirInfo: PEdsDirectoryItemInfo; OpMode: Integer;
@@ -548,6 +549,7 @@ var
   overall, skipall, overroall, skiproall, skipfile: Boolean;
   NewDestPath: array [0..MAX_PATH - 1] of TFarCHar;
   FInterruptTitle, FInterruptText: PFarChar;
+  ACreateSubDirs: Boolean;
 begin
   Result := 0;
   if (ItemsNumber > 0) and
@@ -558,6 +560,7 @@ begin
     try
       silent := OpMode and OPM_SILENT <> 0;
       title := nil;
+      ACreateSubDirs := False;
       if not silent then
       begin
         if Move = 0 then
@@ -583,10 +586,19 @@ begin
           subtitle := Format(subtitle,
             [ItemsNumber, GetMsg(TLanguageID(Ord(MOneOk) + GetOk(ItemsNumber)))]);
 
-        if FARAPI.InputBox(title, PFarChar(subtitle), 'Copy',{<-Системное имя истории копирования}
+        with TCopyDlg.Create(title, PFarChar(subtitle), DestPath, NewDestPath) do
+        try
+          if Execute = 0 then
+            Exit
+          else
+            ACreateSubDirs := CreateSubDirs;
+        finally
+          Free;
+        end;
+        (*if FARAPI.InputBox(title, PFarChar(subtitle), 'Copy', // <-Системное имя истории копирования
             DestPath, NewDestPath, MAX_PATH, nil,
             {$IFDEF UNICODE}FIB_EDITPATH or{$ENDIF} FIB_BUTTONS) = 0 then
-          Exit;
+          Exit;*)
       end
       else
 {$IFDEF UNICODE}
@@ -655,16 +667,19 @@ begin
               DownloadFile(UserData^.BaseRef, @dirInfo, NewDestPath,
                 Move, silent, ProgressBar,
                 TPluginPanelItemArray(PanelItem)[i].FindData.dwFileAttributes,
+                ACreateSubDirs,
                 overall, skipall, overroall, skiproall, skipfile)
             else
 {$IFDEF UNICODE}
               RecursiveDownload(UserData^.BaseRef,
                 AddEndSlash(NewDestPath) + CharToWideChar(dirInfo.szFileName),
-                Move, silent, ProgressBar, overall, skipall, overroall, skiproall);
+                Move, silent, ProgressBar, ACreateSubDirs,
+                overall, skipall, overroall, skiproall);
 {$ELSE}
               RecursiveDownload(UserData^.BaseRef,
                 AddEndSlash(NewDestPath) + dirInfo.szFileName,
-                Move, silent, ProgressBar, overall, skipall, overroall, skiproall);
+                Move, silent, ProgressBar, ACreateSubDirs,
+                overall, skipall, overroall, skiproall);
 {$ENDIF}
             if not skipfile then
               TPluginPanelItemArray(PanelItem)[i].Flags :=
@@ -694,6 +709,7 @@ end;
 procedure TCanon.DownloadFile(dirItem: EdsDirectoryItemRef;
   dirInfo: PEdsDirectoryItemInfo; DestPath: TFarString; Move: Integer;
   Silent: Boolean; ProgressBar: TMultiProgressBar; attrib: Cardinal;
+  CreateSubDirs: Boolean;
   var overall, skipall, overroall, skiproall, skipfile: Boolean);
 var
   stream: EdsStreamRef;
@@ -711,10 +727,29 @@ var
 begin
 {$IFDEF UNICODE}
   FromName := CharToWideChar(dirInfo.szFileName);
-  ToName := AddEndSlash(DestPath) + CharToWideChar(dirInfo^.szFileName);
 {$ELSE}
   FromName := dirInfo.szFileName;
-  ToName := AddEndSlash(DestPath) + dirInfo^.szFileName;
+{$ENDIF}
+  if CreateSubDirs then
+  begin
+    GetImageDate(dirItem, filetime);
+    FileTimeToLocalFileTime(filetime, localFileTime);
+    FileTimeToSystemTime(localFileTime, sysTime);
+    ToName := AddEndSlash(DestPath) +
+      Format('%04d-%02d-%02d',[sysTime.wYear, sysTime.wMonth, sysTime.wDay]);
+    if not DirectoryExists(ToName) and not ForceDirectories(ToName) then
+      raise Exception.CreateCustom(EDS_ERR_DIR_NOT_FOUND, '');
+{$IFDEF UNICODE}
+    ToName := ToName + cDelim + CharToWideChar(dirInfo^.szFileName);
+{$ELSE}
+    ToName := ToName + cDelim + dirInfo^.szFileName;
+{$ENDIF}
+  end
+  else
+{$IFDEF UNICODE}
+    ToName := AddEndSlash(DestPath) + CharToWideChar(dirInfo^.szFileName);
+{$ELSE}
+    ToName := AddEndSlash(DestPath) + dirInfo^.szFileName;
 {$ENDIF}
   if not Silent and FileExists(ToName) then
   begin
@@ -891,7 +926,7 @@ end;
 
 procedure TCanon.RecursiveDownload(dirItem: EdsDirectoryItemRef;
   const DestPath: TFarString; Move: Integer; Silent: Boolean;
-  ProgressBar: TMultiProgressBar;
+  ProgressBar: TMultiProgressBar; CreateSubDirs: Boolean;
   var overall, skipall, overroall, skiproall: Boolean);
 var
   count, i: EdsUInt32;
@@ -921,11 +956,13 @@ begin
 {$IFDEF UNICODE}
           RecursiveDownload(childRef,
             AddEndSlash(DestPath) + CharToWideChar(childInfo.szFileName),
-            0, {Move,} silent, ProgressBar, overall, skipall, overroall, skiproall)
+            0, {Move,} silent, ProgressBar, CreateSubDirs,
+            overall, skipall, overroall, skiproall)
 {$ELSE}
           RecursiveDownload(childRef,
             AddEndSlash(DestPath) + childInfo.szFileName,
-            0, {Move,} silent, ProgressBar, overall, skipall, overroall, skiproall)
+            0, {Move,} silent, ProgressBar, CreateSubDirs,
+            overall, skipall, overroall, skiproall)
 {$ENDIF}
         else
         begin
@@ -946,7 +983,7 @@ begin
           else
             dwFileAttributes := FILE_ATTRIBUTE_ARCHIVE;
           DownloadFile(childRef, @childInfo, DestPath,
-            0, {Move,} silent, ProgressBar, dwFileAttributes,
+            0, {Move,} silent, ProgressBar, dwFileAttributes, CreateSubDirs,
             overall, skipall, overroall, skiproall, skipfile);
         end;
       finally

@@ -15,14 +15,16 @@
 "Reading"
 
 "Copy"
-"Copy \"%s\" to:"
-"Copy %d items to:"
+"Copy \"%s\" &to:"
+"Copy %d items &to:"
 "Copying the file\n%s\nto\n%s"
 
 "Move"
-"Move \"%s\" to:"
-"Move %d items to:"
+"Move \"%s\" &to:"
+"Move %d items &to:"
 "Moving the file\n%s\nto\n%s"
+
+"Create &subdirs by image date"
 
 "Scanning folders..."
 "Total: %s"
