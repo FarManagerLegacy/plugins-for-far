@@ -156,6 +156,22 @@
     {$DEFINE D15UP}
   {$ENDIF}
 
+  {*********************************************************  defines for Delphi XE2 (Delphi 16) }
+  {$IFDEF VER230}
+    {$DEFINE DELPHI16}
+    {$DEFINE D4UP}
+    {$DEFINE D5UP}
+    {$DEFINE D6UP}
+    {$DEFINE D7UP}
+    {$DEFINE D9UP}
+    {$DEFINE D10UP}
+    {$DEFINE D11UP}
+    {$DEFINE D12UP}
+    {$DEFINE D14UP}
+    {$DEFINE D15UP}
+    {$DEFINE D16UP}
+  {$ENDIF}
+
   {*********************************************************  other defines }
   {$IFDEF D6UP}
     {$WARN UNIT_PLATFORM OFF}

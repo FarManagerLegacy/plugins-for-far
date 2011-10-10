@@ -28,6 +28,20 @@ uses
   ULang;
 
 type
+  TCopyDlg = class(TCustomSimpleFarDialog)
+{$IFDEF UNICODE}
+  protected
+    function InitFialogInfo(var AInfo: TDialogInfo): Integer; override;
+{$ENDIF}
+  private
+    FDestText: PFarChar;
+    function GetCreateSubDirs: Boolean;
+  public
+    constructor Create(const Title, SubTitle, SrcText, DestText: PFarChar);
+    function Execute: Integer; override;
+    property CreateSubDirs: Boolean read GetCreateSubDirs;
+  end;
+
   TOverDlg = class(TCustomSimpleFarDialog)
 {$IFDEF UNICODE}
   protected
@@ -89,6 +103,16 @@ begin
 end;
 
 { TOverDlg }
+
+{$IFDEF UNICODE}
+function TOverDlg.InitFialogInfo(var AInfo: TDialogInfo): Integer;
+const
+  cOverDlgGuid: TGUID = '{2B7BFF88-7576-476B-A9E3-B66C94712278}';
+begin
+  AInfo.Id := cOverDlgGuid;
+  Result := 1;
+end;
+{$ENDIF}
 
 constructor TOverDlg.Create(const FileName: TFarString; const OverText: PFarChar;
   dirItem: EdsDirectoryItemRef; dirInfo: PEdsDirectoryItemInfo);
@@ -192,16 +216,6 @@ begin
   end;
 end;
 
-{$IFDEF UNICODE}
-function TOverDlg.InitFialogInfo(var AInfo: TDialogInfo): Integer;
-const
-  cOverDlgGuid: TGUID = '{2B7BFF88-7576-476B-A9E3-B66C94712278}';
-begin
-  AInfo.Id := cOverDlgGuid;
-  Result := 1;
-end;
-{$ENDIF}
-
 { TConfigDlg }
 
 const
@@ -248,6 +262,16 @@ begin
     WriteRegStringValue(cLibraryPath, SubKey, LibraryPath);
   end;
 end;
+
+{$IFDEF UNICODE}
+function TConfigDlg.InitFialogInfo(var AInfo: TDialogInfo): Integer;
+const
+  cConfigDlgGuid: TGUID = '{483D99E4-4B09-4C97-BA0E-DC362CBE5B9B}';
+begin
+  AInfo.Id := cConfigDlgGuid;
+  Result := 1;
+end;
+{$ENDIF}
 
 constructor TConfigDlg.Create;
 const
@@ -318,14 +342,62 @@ begin
     Result := 0;
 end;
 
+{ TCopyDlg }
+
 {$IFDEF UNICODE}
-function TConfigDlg.InitFialogInfo(var AInfo: TDialogInfo): Integer;
+function TCopyDlg.InitFialogInfo(var AInfo: TDialogInfo): Integer;
 const
-  cConfigDlgGuid: TGUID = '{483D99E4-4B09-4C97-BA0E-DC362CBE5B9B}';
+  cCopyDlgGuid: TGUID = '{07A34660-5DB0-4887-9B97-FC9293F9D422}';
 begin
-  AInfo.Id := cConfigDlgGuid;
+  AInfo.Id := cCopyDlgGuid;
   Result := 1;
 end;
 {$ENDIF}
+
+function TCopyDlg.GetCreateSubDirs: Boolean;
+begin
+  Result := ItemCheckData[4];
+end;
+
+constructor TCopyDlg.Create(const Title, SubTitle, SrcText, DestText: PFarChar);
+const
+  cSizeX = 76;
+  cSizeY = 10;
+  cLeftSide = 5;
+  cCopy: PFarChar = 'Copy'; // <-Системное имя истории копирования 
+begin
+  inherited Create([
+  {0} DlgItem(DI_DOUBLEBOX, -1, -1, cSizeX, cSizeY, 0, PFarChar(Title)),
+  {1} DlgItem(DI_TEXT, cLeftSide, 2, cSizeX - cLeftSide * 2, -1,
+        0, SubTitle),
+  {2} DlgItem(DI_EDIT, cLeftSide, 3, cSizeX - cLeftSide * 2, -1,
+        DIF_HISTORY{$IFDEF UNICODE} or DIF_EDITPATH{$ENDIF},
+        SrcText, cCopy),
+  {3} DlgItem(DI_TEXT, cLeftSide - 1, 4, -1, 0, DIF_SEPARATOR, ''),
+  {4} DlgItem(DI_CHECKBOX, cLeftSide, 5, cSizeX - cLeftSide * 2, -1, 0,
+        PFarChar(MCreateSubDirs)),
+  {5} DlgItem(DI_TEXT, cLeftSide - 1, cSizeY - 4, -1, 0, DIF_SEPARATOR, ''),
+  {6} DlgItem(DI_BUTTON, 0, cSizeY - 3, 0, 0, DIF_CENTERGROUP,
+        PFarChar(MBtnOk), Pointer(True)),
+  {7} DlgItem(DI_BUTTON, 0, cSizeY - 3, 0, 0, DIF_CENTERGROUP,
+        PFarChar(MBtnCancel))
+  ], -1, -1, cSizeX, cSizeY, nil);
+  FDestText := DestText;
+end;
+
+function TCopyDlg.Execute: Integer;
+begin
+  if inherited Execute = 6 then
+  begin
+{$IFDEF UNICODE}
+    WStrLCopy(FDestText, PFarChar(ItemTextData[2]), MAX_PATH);
+{$ELSE}
+    StrLCopy(FDestText, PFarChar(ItemTextData[2]), MAX_PATH);
+{$ENDIF}
+    Result := 1;
+  end
+  else
+    Result := 0;
+end;
 
 end.

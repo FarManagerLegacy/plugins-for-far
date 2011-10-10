@@ -38,6 +38,8 @@ type
     MMoveItemsTo,
     MMoving,
 
+    MCreateSubDirs,
+
     MScanning,
     MTotal,
     MFilesProcessed,
