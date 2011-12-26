@@ -468,7 +468,11 @@ type
     nChars: Integer;
   end;
 
+{$IFDEF _DXE2orHigher}
+function EnumStringModules(Instance: NativeInt; Data: Pointer): Boolean;
+{$ELSE}
 function EnumStringModules(Instance: Longint; Data: Pointer): Boolean;
+{$ENDIF}
 begin
   with PStrData(Data)^ do
   begin
