@@ -724,6 +724,7 @@ var
   FromName, ToName: TFarString;
   FromNameL, ToNameL: TFarString;
   attr: Cardinal;
+  ProgressInfo: array[0..1] of TProgressInfo;
 begin
 {$IFDEF UNICODE}
   FromName := CharToWideChar(dirInfo.szFileName);
@@ -751,56 +752,21 @@ begin
 {$ELSE}
     ToName := AddEndSlash(DestPath) + dirInfo^.szFileName;
 {$ENDIF}
-  if not Silent and FileExists(ToName) then
-  begin
-    if skipall then
+  try
+    if not Silent and FileExists(ToName) then
     begin
-      skipfile := True;
-      Exit;
-    end
-    else if not overall then
-      with TOverDlg.Create(ToName, GetMsg(MFileAlreadyExists), dirItem, dirInfo) do
-      try
-        case Execute of
-          //0: // Overwrite
-          1: // All
-            overall := True;
-          2: // Skip
-          begin
-            skipfile := True;
-            Exit;
-          end;
-          3: // Skip All
-          begin
-            skipall := True;
-            skipfile := True;
-            Exit;
-          end;
-          4: // Cancel
-            raise Exception.CreateCustom(EDS_ERR_OPERATION_CANCELLED, '');
-        end;
-      finally
-        Free;
-      end;
-{$IFDEF UNICODE}
-    attr := GetFileAttributesW(PFarChar(ToName));
-{$ELSE}
-    attr := GetFileAttributesA(PFarChar(ToName));
-{$ENDIF}
-    if attr and FILE_ATTRIBUTE_READONLY <> 0 then
-    begin
-      if skiproall then
+      if skipall then
       begin
         skipfile := True;
         Exit;
       end
-      else if not overroall then
-        with TOverDlg.Create(ToName, GetMsg(MFileReadOnly), dirItem, dirInfo) do
+      else if not overall then
+        with TOverDlg.Create(ToName, GetMsg(MFileAlreadyExists), dirItem, dirInfo) do
         try
           case Execute of
             //0: // Overwrite
             1: // All
-              overroall := True;
+              overall := True;
             2: // Skip
             begin
               skipfile := True;
@@ -808,7 +774,7 @@ begin
             end;
             3: // Skip All
             begin
-              skiproall := True;
+              skipall := True;
               skipfile := True;
               Exit;
             end;
@@ -818,12 +784,70 @@ begin
         finally
           Free;
         end;
-      attr := attr and not FILE_ATTRIBUTE_READONLY;
 {$IFDEF UNICODE}
-      SetFileAttributesW(PFarChar(ToName), attr);
+      attr := GetFileAttributesW(PFarChar(ToName));
 {$ELSE}
-      SetFileAttributesA(PFarChar(ToName), attr);
+      attr := GetFileAttributesA(PFarChar(ToName));
 {$ENDIF}
+      if attr and FILE_ATTRIBUTE_READONLY <> 0 then
+      begin
+        if skiproall then
+        begin
+          skipfile := True;
+          Exit;
+        end
+        else if not overroall then
+          with TOverDlg.Create(ToName, GetMsg(MFileReadOnly), dirItem, dirInfo) do
+          try
+            case Execute of
+              //0: // Overwrite
+              1: // All
+                overroall := True;
+              2: // Skip
+              begin
+                skipfile := True;
+                Exit;
+              end;
+              3: // Skip All
+              begin
+                skiproall := True;
+                skipfile := True;
+                Exit;
+              end;
+              4: // Cancel
+                raise Exception.CreateCustom(EDS_ERR_OPERATION_CANCELLED, '');
+            end;
+          finally
+            Free;
+          end;
+        attr := attr and not FILE_ATTRIBUTE_READONLY;
+{$IFDEF UNICODE}
+        SetFileAttributesW(PFarChar(ToName), attr);
+{$ELSE}
+        SetFileAttributesA(PFarChar(ToName), attr);
+{$ENDIF}
+      end;
+    end;
+  finally
+    if skipfile and (ProgressBar.ProgressCount > 1) then
+    begin
+      FromNameL := Copy(FromName, 1, Length(FromName));
+      ToNameL := Copy(ToName, 1, Length(ToName));
+      FSF.TruncPathStr(PFarChar(FromNameL), cSizeProgress);
+      FSF.TruncPathStr(PFarChar(ToNameL), cSizeProgress);
+      ProgressInfo[0].FPos := 0;
+      if Move <> 0 then
+        ProgressInfo[0].FText := Format(GetMsg(MMoving), [FromNameL, ToNameL])
+      else
+        ProgressInfo[0].FText := Format(GetMsg(MCopying), [FromNameL, ToNameL]);
+      Inc(FCurFile);
+      Inc(FCurTotalFilesSize, dirInfo^.size);
+      ProgressInfo[1].FPos := FCurTotalFilesSize;
+      ProgressInfo[1].FText := #1 + ' ' +
+        Format(GetMsg(MTotal), [Format3(FTotalFilesSize)]) + ' ';
+      if not ProgressBar.UpdateProgress(ProgressInfo, #1#10 + ' ' +
+          Format(GetMsg(MFilesProcessed), [FCurFile, FTotalFiles]) + ' ') then
+        CheckEdsError(EDS_ERR_OPERATION_CANCELLED);
     end;
   end;
 {$IFDEF UNICODE}

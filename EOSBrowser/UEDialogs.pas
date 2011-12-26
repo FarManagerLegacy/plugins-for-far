@@ -344,6 +344,9 @@ end;
 
 { TCopyDlg }
 
+const
+  cCreateSubDirs = 'CreateSubDirs';
+
 {$IFDEF UNICODE}
 function TCopyDlg.InitFialogInfo(var AInfo: TDialogInfo): Integer;
 const
@@ -364,8 +367,12 @@ const
   cSizeX = 76;
   cSizeY = 10;
   cLeftSide = 5;
-  cCopy: PFarChar = 'Copy'; // <-Системное имя истории копирования 
+  cCopy: PFarChar = 'Copy'; // <-Системное имя истории копирования
+var
+  CreateSubDirs: Boolean;
 begin
+  CreateSubDirs := ReadRegBoolValue(cCreateSubDirs,
+    FARAPI.RootKey + cDelim + cEOSBrowser, False);
   inherited Create([
   {0} DlgItem(DI_DOUBLEBOX, -1, -1, cSizeX, cSizeY, 0, PFarChar(Title)),
   {1} DlgItem(DI_TEXT, cLeftSide, 2, cSizeX - cLeftSide * 2, -1,
@@ -375,7 +382,7 @@ begin
         SrcText, cCopy),
   {3} DlgItem(DI_TEXT, cLeftSide - 1, 4, -1, 0, DIF_SEPARATOR, ''),
   {4} DlgItem(DI_CHECKBOX, cLeftSide, 5, cSizeX - cLeftSide * 2, -1, 0,
-        PFarChar(MCreateSubDirs)),
+        PFarChar(MCreateSubDirs), Pointer(CreateSubDirs)),
   {5} DlgItem(DI_TEXT, cLeftSide - 1, cSizeY - 4, -1, 0, DIF_SEPARATOR, ''),
   {6} DlgItem(DI_BUTTON, 0, cSizeY - 3, 0, 0, DIF_CENTERGROUP,
         PFarChar(MBtnOk), Pointer(True)),
@@ -394,6 +401,8 @@ begin
 {$ELSE}
     StrLCopy(FDestText, PFarChar(ItemTextData[2]), MAX_PATH);
 {$ENDIF}
+    WriteRegBoolValue(cCreateSubDirs, FARAPI.RootKey + cDelim + cEOSBrowser,
+      CreateSubDirs);
     Result := 1;
   end
   else
