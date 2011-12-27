@@ -5,49 +5,80 @@ use Win32API::Registry 0.21 qw(:ALL);
 use Cwd qw(fast_abs_path);
 use File::Path qw(make_path);
 use ActiveState::DateTime qw(gmt_offset);
+use Options;
 
-my ($key, $type, $dcc, $root, $lib, $brc);
+my $options = new Options(
+  params => [['api', 'a', undef, 'Far Plugins API version (1, 2, 3)']],
+  flags => [['lite', 'l', 'Use Delphi 7 Lite compiler'], ['help', 'h', 'Display this usage guide']] );
+
+$options->get_options();
+if ($options->get_result('help')) {
+    $options->print_usage();
+    exit(1);
+}
+
+my ($dcc, $root, $lib, $brc, $sysdcu7);
 (my $appname = fast_abs_path('.')) =~ s|^.*[\\/]||;
 
-# Расположение Delphi7
-RegOpenKeyEx(HKEY_LOCAL_MACHINE, 'Software\Borland\Delphi\7.0', 0, KEY_READ, $key);
-RegQueryValueEx($key, "App", [], $type, $dcc, []);
-$dcc =~ s/\\[^\\]+$/\\dcc32.exe/;
-$brc = $dcc;
-$brc =~ s/\\[^\\]+$/\\brc32.exe/;
-RegQueryValueEx($key, "RootDir", [], $type, $root, []);
-$root =~ s/\\$//;
-RegCloseKey($key);
+if ($options->get_result('lite')) {  
+  # Расположение Delphi7
+  $0 = $^X unless ($^X =~ m%(^|[/\\])perl(\.exe)?$%i);
+  $root = $0;
+  $root =~ s/\\[^\\]+$/\\NoBackup\\Delphi7/;
+  $dcc = "$root\\dcc32.exe";
+  $brc = "$root\\brc32.exe";
 
-# Библиотеки Delphi7
-RegOpenKeyEx(HKEY_CURRENT_USER, 'Software\Borland\Delphi\7.0\Library', 0, KEY_READ, $key);
-RegQueryValueEx($key, "Search Path", [], $type, $lib, []);
-RegCloseKey($key);
+  # Библиотеки Delphi7
+  $lib = '';
+  $sysdcu7 = "$root\\SysDcu7";
+}
+else {
+  # Расположение Delphi7
+  my ($key, $type);
+  RegOpenKeyEx(HKEY_LOCAL_MACHINE, 'Software\Borland\Delphi\7.0', 0, KEY_READ, $key);
+  RegQueryValueEx($key, "App", [], $type, $dcc, []);
+  $dcc =~ s/\\[^\\]+$/\\dcc32.exe/;
+  $brc = $dcc;
+  $brc =~ s/\\[^\\]+$/\\brc32.exe/;
+  RegQueryValueEx($key, "RootDir", [], $type, $root, []);
+  $root =~ s/\\$//;
+  RegCloseKey($key);
 
-$lib =~ s/\$\(DELPHI\)/$root/gi;
-$lib =~ s/\\$//;
-$lib = '';
+  # Библиотеки Delphi7
+  RegOpenKeyEx(HKEY_CURRENT_USER, 'Software\Borland\Delphi\7.0\Library', 0, KEY_READ, $key);
+  RegQueryValueEx($key, "Search Path", [], $type, $lib, []);
+  RegCloseKey($key);
 
-my $Unicode = 0 | ($#ARGV != -1);
+  $lib =~ s/\$\(DELPHI\)/$root/gi;
+  $lib =~ s/\\$//;
+  $lib = '';
+  $sysdcu7 = "$root\\AddLib\\SysDcu7";
+}
 
-my @UStr = ('ANSI', 'UNICODE');
-my @UStrAdd = ('', ';UNICODE_CTRLS');
+print "Dcc: $dcc\n";
+
+my $api = $options->get_result('api') - 1;
+
+my @UStr = ('Far1', 'Far2', 'Far3');
+my @UStrAdd = (';ANSI', ';UNICODE;UNICODE_CTRLS', ';UNICODE;UNICODE_CTRLS');
 open CFG, '+<', "$appname.cfg";
 undef $/;
 my $cfg = <CFG>;
 while ($cfg =~ s/^(-D.*)UNICODE[^;]*;?/$1/mi) {};
-$cfg =~ s/^-E.*$/-E"..\\Bin\\$UStr[$Unicode]\\$appname"/mi;
-$cfg =~ s/^-N.*$/-N"..\\Dcu\\$UStr[$Unicode]\\$appname"/mi;
+while ($cfg =~ s/^(-D.*)Far[1-3];?/$1/mi) {};
+$cfg =~ s/^(-[UOIR].*)(FarAPI[^;]*)/$1FarAPI\\$UStr[$api]/mig;
+$cfg =~ s/^-E.*$/-E"..\\Bin\\$UStr[$api]\\$appname"/mi;
+$cfg =~ s/^-N.*$/-N"..\\Dcu\\$UStr[$api]\\$appname"/mi;
 seek CFG, 0, 0;
 print CFG $cfg;
 truncate CFG, tell(CFG);
 close CFG;
 
-make_path "..\\Bin\\$UStr[$Unicode]\\$appname", "..\\Dcu\\$UStr[$Unicode]\\$appname";
+make_path "..\\Bin\\$UStr[$api]\\$appname", "..\\Dcu\\$UStr[$api]\\$appname";
 
 my %subst = ( Version => '', FarVersion => '', CompileDate => '');
 open(VERSION, '<', 'version.txt') and $subst{Version} = <VERSION>, close VERSION;
-$subst{FarVersion} = ('1.7x', '2')[$Unicode];
+$subst{FarVersion} = ('1.7x', '2', '3')[$api];
 $subst{CompileDate} = (sprintf '%02d.%02d.%04d', sub{($_[3], $_[4] + 1, $_[5] + 1900)}->(localtime));
 
 open DATETIME, '>', 'datetime.inc';
@@ -73,18 +104,18 @@ if ($subst{Version} and open(VERSION, '+<', 'versioninfo.rc')) {
 }
 
 system "$brc -r $_" while(<*.rc>);
-#print <<DCC;
-#  $dcc $appname.dpr -B -Q
-#  -I\"$lib;..\\Dcu\\$UStr[$Unicode]\\$appname\"
-#  -U\"$root\\AddLib\\SysDcu7;$lib;..\\Dcu\\$UStr[$Unicode]\\$appname\"
-#  -LE\"$lib\" -R\"$lib\"
-#  -DRelease;NOT_USE_RICHEDIT;$UStr[$Unicode]$UStrAdd[$Unicode]
-#DCC
+print <<DCC if 0;
+  $dcc $appname.dpr -B -Q
+  -I\"$lib;..\\Dcu\\$UStr[$api]\\$appname\"
+  -U\"$sysdcu7;$lib;..\\Dcu\\$UStr[$api]\\$appname\"
+  -LE\"$lib\" -R\"$lib\"
+  -DRelease;NOT_USE_RICHEDIT;$UStr[$api]$UStrAdd[$api]
+DCC
 exit 1 if system "$dcc $appname.dpr -B -Q " .
-  "-I\"$lib;..\\Dcu\\$UStr[$Unicode]\\$appname\" " .
-  "-U\"$root\\AddLib\\SysDcu7;$lib;..\\Dcu\\$UStr[$Unicode]\\$appname\" " .
+  "-I\"$lib;..\\Dcu\\$UStr[$api]\\$appname\" " .
+  "-U\"$sysdcu7;$lib;..\\Dcu\\$UStr[$api]\\$appname\" " .
   "-LE\"$lib\" -R\"$lib\" " .
-  "-DRelease;NOT_USE_RICHEDIT;$UStr[$Unicode]$UStrAdd[$Unicode]";
+  "-DRelease;NOT_USE_RICHEDIT;$UStr[$api]$UStrAdd[$api]";
 
 use Encode qw(encode decode);
 use File::Copy;
@@ -92,7 +123,7 @@ use File::Copy;
 while(glob('Doc\*.*')) {
   my $file = $_;
   $file =~ s/^Doc\\//i;
-  $file = "..\\Bin\\$UStr[$Unicode]\\$appname\\$file";
+  $file = "..\\Bin\\$UStr[$api]\\$appname\\$file";
   if (!-f $file || (stat($_))[9] > (stat($file))[9]) {
     if ($file =~ m|^(.*)tpl\.([^/\\].+)$|i) {
       $file = $1 . $2;
@@ -106,10 +137,10 @@ while(glob('Doc\*.*')) {
       $content =~ s/\$\{$_\}/$subst{$_}/gei for (keys %subst);
 
       open $fh, '>', $file;
-      if (!$Unicode && $content =~ s/^\xEF\xBB\xBF//) {
+      if (!$api && $content =~ s/^\xEF\xBB\xBF//) {
         print $fh encode("cp866", decode("utf8", $content));
       }
-      elsif ($Unicode && $content !~ m/^\xEF\xBB\xBF/) {
+      elsif ($api && $content !~ m/^\xEF\xBB\xBF/) {
         print $fh "\xEF\xBB\xBF", encode("utf8", decode("cp866", $content));
       }
       else {
@@ -125,5 +156,5 @@ while(glob('Doc\*.*')) {
 
 my $ver = $subst{Version};
 $ver =~ s/\.//g;
-my @USuf = ('A', 'W');
-system "rar.exe u -as -mdg -m5 -r0 -ep1 -rr -s ..\\Bin\\$appname$USuf[$Unicode].v$ver.rar ..\\Bin\\$UStr[$Unicode]\\$appname\\*.* >nul";
+my @USuf = ('A', 'W', '');
+system "rar.exe u -as -mdg -m5 -r0 -ep1 -rr -s ..\\Bin\\$appname$USuf[$api].v$ver.rar ..\\Bin\\$UStr[$api]\\$appname\\*.* >nul";
