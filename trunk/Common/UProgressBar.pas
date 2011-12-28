@@ -8,7 +8,11 @@ uses
   Windows,
   kol,
 {$IFDEF UNICODE}
+  {$IFDEF Far3}
+  Plugin3,
+  {$ELSE}
   PluginW,
+  {$ENDIF}
 {$ELSE}
   plugin,
 {$ENDIF}
@@ -108,6 +112,9 @@ const
   chrCheck    = #$FB;
 {$ENDIF}
   cFar = ' - Far';
+{$IFDEF Far3}
+  cGuid: TGUID = '{BEAF420F-AA55-4D1B-9633-AEDE403F9908}';
+{$ENDIF}
 
 { TMultiProgressBar }
 
@@ -121,8 +128,12 @@ begin
   inherited Create;
 {$IFDEF UNICODE}
   GetConsoleTitleW(FTitleBuf, cMaxBuf);
+{$IFDEF Far3}
+  FARAPI.AdvControl(GlobalInfo.Guid, ACTL_SETPROGRESSSTATE, PS_NORMAL, nil);
+{$ELSE}
   FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSSTATE,
     Pointer(PS_NORMAL));
+{$ENDIF}
 {$ELSE}
   GetConsoleTitleA(FTitleBuf, cMaxBuf);
 {$ENDIF}
@@ -168,8 +179,13 @@ begin
   for i := 0 to FLinesAfter - 1 do
     str := str + #10;
   FSaveScreen := FARAPI.SaveScreen(0, 0, -1, -1);
+{$IFDEF Far3}
+  FARAPI.Message(GlobalInfo.Guid, cGuid, FMSG_ALLINONE + FMSG_LEFTALIGN, nil,
+    PPCharArray(@str[1]), 0, 0);
+{$ELSE}
   FARAPI.Message(FARAPI.ModuleNumber, FMSG_ALLINONE + FMSG_LEFTALIGN, nil,
     PPCharArray(@str[1]), 0, 0);
+{$ENDIF}
   FEsc := False;
 end;
 
@@ -217,9 +233,15 @@ begin
   SetLength(FProgressData, 0);
 {$IFDEF UNICODE}
   SetConsoleTitleW(FTitleBuf);
+{$IFDEF Far3}
+  FARAPI.AdvControl(GlobalInfo.Guid, ACTL_SETPROGRESSSTATE,
+    PS_NOPROGRESS, nil);
+  FARAPI.AdvControl(GlobalInfo.Guid, ACTL_PROGRESSNOTIFY, 0, nil);
+{$ELSE}
   FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSSTATE,
     Pointer(PS_NOPROGRESS));
   FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_PROGRESSNOTIFY, nil);
+{$ENDIF}
 {$ELSE}
   SetConsoleTitleA(FTitleBuf);
 {$ENDIF}
@@ -290,7 +312,11 @@ begin
       SetConsoleTitleW(PFarChar('{' + Int2Str(ps) + '%} ' + FConsoleTitle));
       pv.Completed := aData[j].FPos;
       pv.Total := FProgressData[j].FInit.FMaxPos;
+{$IFDEF Far3}
+      FARAPI.AdvControl(GlobalInfo.Guid, ACTL_SETPROGRESSVALUE, 0, @pv);
+{$ELSE}
       FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSVALUE, @pv);
+{$ENDIF}
     end;
 {$ELSE}
       SetConsoleTitleA(PFarChar('{' + Int2Str(ps) + '%} ' + FConsoleTitle));
@@ -301,8 +327,13 @@ begin
   begin
     if FLinesAfter > 0 then
        str := str + TextAfter;
+{$IFDEF Far3}
+    FARAPI.Message(GlobalInfo.Guid, cGuid, FMSG_ALLINONE + FMSG_LEFTALIGN, nil,
+      PPCharArray(@str[1]), 0, 0);
+{$ELSE}
     FARAPI.Message(FARAPI.ModuleNumber, FMSG_ALLINONE + FMSG_LEFTALIGN, nil,
       PPCharArray(@str[1]), 0, 0);
+{$ENDIF}
   end;
   Result := not (FEsc and CheckForEsc);
   if not Result then
@@ -310,19 +341,33 @@ begin
     if Assigned(FConfirmTitle) then
     begin
 {$IFDEF UNICODE}
+{$IFDEF Far3}
+      FARAPI.AdvControl(GlobalInfo.Guid, ACTL_SETPROGRESSSTATE,
+        PS_PAUSED, nil);
+{$ELSE}
       FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSSTATE,
         Pointer(PS_PAUSED));
+{$ENDIF}
       try
 {$ENDIF}
         Result := ShowMessage(FConfirmTitle, FConfirmText,
           FMSG_WARNING + FMSG_MB_YESNO) <> 0;
 {$IFDEF UNICODE}
       finally
+{$IFDEF Far3}
+        FARAPI.AdvControl(GlobalInfo.Guid, ACTL_SETPROGRESSSTATE,
+          PS_NORMAL, nil);
+{$ELSE}
         FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSSTATE,
           Pointer(PS_NORMAL));
+{$ENDIF}
         pv.Completed := aData[FTotalIndex].FPos;
         pv.Total := FProgressData[FTotalIndex].FInit.FMaxPos;
+{$IFDEF Far3}
+        FARAPI.AdvControl(GlobalInfo.Guid, ACTL_SETPROGRESSVALUE, 0, @pv);
+{$ELSE}
         FARAPI.AdvControl(FARAPI.ModuleNumber, ACTL_SETPROGRESSVALUE, @pv);
+{$ENDIF}
       end;
 {$ENDIF}
     end;

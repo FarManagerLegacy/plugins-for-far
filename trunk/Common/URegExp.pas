@@ -16,7 +16,11 @@ interface
 uses
   Kol,
 {$IFDEF UNICODE}
+  {$IFDEF Far3}
+  Plugin3,
+  {$ELSE}
   PluginW,
+  {$ENDIF}
 {$ELSE}
   {$IFDEF USE_PerlRegEx}
   PerlRegEx,

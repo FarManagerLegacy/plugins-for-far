@@ -5,7 +5,19 @@ unit UEdSdkApi;
 interface
 
 uses
-  Windows, {$IFDEF UNICODE}PluginW,{$ELSE}Plugin,{$ENDIF} UTypes, EDSDKType, EDSDKError;
+  Windows, 
+{$IFDEF UNICODE}
+  {$IFDEF Far3}
+  Plugin3,
+  {$ELSE}
+  PluginW,
+  {$ENDIF}
+{$ELSE}
+  Plugin,
+{$ENDIF} 
+  UTypes, 
+  EDSDKType, 
+  EDSDKError;
 
 const
   cEdSdk = 'EDSDK.DLL';

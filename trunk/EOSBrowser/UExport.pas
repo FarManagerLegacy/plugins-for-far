@@ -9,7 +9,11 @@ uses
   Kol,
   err,
 {$IFDEF UNICODE}
+  {$IFDEF Far3}
+  Plugin3,
+  {$ELSE}
   PluginW,
+  {$ENDIF}
   FarKeysW,
 {$ELSE}
   plugin,

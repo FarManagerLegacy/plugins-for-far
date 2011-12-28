@@ -9,7 +9,11 @@ uses
   kol,
   err,
 {$IFDEF UNICODE}
+  {$IFDEF Far3}
+  Plugin3,
+  {$ELSE}
   PluginW,
+  {$ENDIF}
 {$ELSE}
   plugin,
 {$ENDIF}
@@ -116,8 +120,13 @@ begin
     if UserData <> 0 then
       FreeUserData(Pointer(UserData));
 {$IFDEF UNICODE}
+{$IFDEF Far3}
+    if Assigned(FileName) then
+      FreeMem(FileName);
+{$ELSE}
     if Assigned(FindData.cFileName) then
       FreeMem(FindData.cFileName);
+{$ENDIF}
 {$ENDIF}
   end;
   Dec(FItemsNumber);
@@ -139,7 +148,11 @@ var
 begin
   for i := 0 to ItemsNumber - 1 do
 {$IFDEF UNICODE}
+{$IFDEF Far3}
+    if WStrComp(TPluginPanelItems(PanelItem)[i].FileName, FileName) = 0 then
+{$ELSE}
     if WStrComp(TPluginPanelItems(PanelItem)[i].FindData.cFileName, FileName) = 0 then
+{$ENDIF}
 {$ELSE}
     if StrComp(TPluginPanelItems(PanelItem)[i].FindData.cFileName, FileName) = 0 then
 {$ENDIF}
@@ -177,8 +190,13 @@ begin
         if UserData <> 0 then
           FreeUserData(Pointer(UserData));
 {$IFDEF UNICODE}
+{$IFDEF Far3}
+        if Assigned(FileName) then
+          FreeMem(FileName);
+{$ELSE}
         if Assigned(FindData.cFileName) then
           FreeMem(FindData.cFileName);
+{$ENDIF}
 {$ENDIF}
       end;
     FreeMem(PanelItem);
@@ -367,9 +385,15 @@ function TDirNode.InternalChDir(const Dir: TFarString): TDirNode;
       FSubDir := NewList;
       for i := 0 to ItemsNumber - 1 do
         with TPluginPanelItems(FPanelItem)[i] do
+{$IFDEF Far3}
+        if FileAttributes and FILE_ATTRIBUTE_DIRECTORY <> 0 then
+          AddSubDir(-1, CreateSubDir(UserData, TDirNodeClass(ClassType),
+            FileName));
+{$ELSE}
         if FindData.dwFileAttributes and FILE_ATTRIBUTE_DIRECTORY <> 0 then
           AddSubDir(-1, CreateSubDir(UserData, TDirNodeClass(ClassType),
             FindData.cFileName));
+{$ENDIF}
     end;
     for i := 0 to SubDirCount - 1 do
       if FSF.LStricmp(PFarChar(NewDir), PFarChar(SubDir[i].DirName)) = 0 then
