@@ -8,7 +8,11 @@ uses
   Windows,
   Kol,
 {$IFDEF UNICODE}
+  {$IFDEF Far3}
+  Plugin3,
+  {$ELSE}
   PluginW,
+  {$ENDIF}
   FarKeysW,
 {$ELSE}
   Plugin,
@@ -17,7 +21,11 @@ uses
   UTypes;
 
 type
+{$IFDEF Far3}
+  TFarDlgProc = function(Msg, Param1: Integer; Param2: Pointer): LONG_PTR of object;
+{$ELSE}
   TFarDlgProc = function(Msg, Param1: Integer; Param2: LONG_PTR): LONG_PTR of object;
+{$ENDIF}
 
   TFarDialog = class
   private
@@ -122,6 +130,7 @@ begin
     Flags := AFlags;
     if ItemType = DI_COMBOBOX then
       Param.ListItems := nil
+{$IFNDEF Far3}
     else if ItemType = DI_BUTTON then
       DefaultButton := Integer(AParam)
     else if ItemType = DI_FIXEDIT then
@@ -144,24 +153,41 @@ begin
     else
       StrLCopy(Data.Data, AData, cEditDataLen);
 {$ENDIF}
+{$ENDIF}
   end;
 end;
 
 function FarDlgProc(hDlg: THandle; Msg, Param1: Integer;
+{$IFDEF Far3}
+  Param2: Pointer): LONG_PTR; stdcall;
+{$ELSE}
   Param2: LONG_PTR): LONG_PTR; stdcall;
+{$ENDIF}
 var
   FarDialog: TFarDialog;
 begin
   if Msg = DN_INITDIALOG then
   begin
     FARAPI.SendDlgMessage(hDlg, DM_SETDLGDATA, 0, Param2);
+{$IFDEF Far3}
+    FarDialog := Param2;
+{$ELSE}
     LONG_PTR(FarDialog) := Param2;
+{$ENDIF}
     FarDialog.FDlg := hDlg;
   end
   else
+{$IFDEF Far3}
+    LONG_PTR(FarDialog) := FARAPI.SendDlgMessage(hDlg, DM_GETDLGDATA, 0, nil);
+{$ELSE}
     LONG_PTR(FarDialog) := FARAPI.SendDlgMessage(hDlg, DM_GETDLGDATA, 0, 0);
+{$ENDIF}
 
+{$IFDEF Far3}
+  Result := FarDialog.DlgProc(Msg, Param1, INT_PTR(Param2));
+{$ELSE}
   Result := FarDialog.DlgProc(Msg, Param1, Param2);
+{$ENDIF}
 end;
 
 { TFarDialog }

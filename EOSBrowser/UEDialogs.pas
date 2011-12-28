@@ -10,7 +10,11 @@ uses
   Windows,
   Kol,
 {$IFDEF UNICODE}
+  {$IFDEF Far3}
+  Plugin3,
+  {$ELSE}
   PluginW,
+  {$ENDIF}
 {$ELSE}
   plugin,
 {$ENDIF}

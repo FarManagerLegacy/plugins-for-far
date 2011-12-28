@@ -8,7 +8,11 @@ uses
   Windows,
   Kol,
 {$IFDEF UNICODE}
+  {$IFDEF Far3}
+  Plugin3,
+  {$ELSE}
   PluginW,
+  {$ENDIF}
 {$ELSE}
   Plugin,
 {$ENDIF}
@@ -108,10 +112,12 @@ function RegEnumValueW(hKey: HKEY; dwIndex: DWORD; lpValueName: PWideChar;
 
 function PosEx(const SubStr, S: TFarString; Offset: Cardinal = 1): Integer;
 procedure FreeAndNil(var Obj);
-procedure FreeAndNilKol(var Obj); 
+procedure FreeAndNilKol(var Obj);
 function StringReplace(const S, OldPattern, NewPattern: TFarString;
   ReplaceAll: Boolean): TFarString;
+{$IFNDEF Far3}
 function FarRootKey: TFarString;
+{$ENDIF}
 
 {.$DEFINE OUT_LOG}
 {$IFDEF RELEASE}
@@ -725,16 +731,26 @@ end;
 
 function ShowMessage(const title, text: PFarChar; buttons: array of PFarChar;
   flags: Cardinal): Integer;
+{$IFDEF Far3}
+const
+  cGuid: TGUID = '{DABB573A-E3FB-42B1-BA8B-A1D31FED2304}';
+{$ENDIF}
 var
   str: TFarString;
   i, ButtonsNumber: Integer;
+
 begin
   str := TFarString(title) + #10 + text;
   ButtonsNumber := Length(buttons);
   for i := 0 to ButtonsNumber - 1 do
     str := str + #10 + buttons[i];
+{$IFDEF Far3}
+  Result := FARAPI.Message(GlobalInfo.Guid, cGuid, FMSG_ALLINONE or flags, nil,
+    PPCharArray(@str[1]), 0, ButtonsNumber);
+{$ELSE}
   Result := FARAPI.Message(FARAPI.ModuleNumber, FMSG_ALLINONE or flags, nil,
     PPCharArray(@str[1]), 0, ButtonsNumber);
+{$ENDIF}
 end;
 
 function NewID: String;
@@ -966,10 +982,12 @@ begin
   end;
 end;
 
+{$IFNDEF Far3}
 function FarRootKey: TFarString;
 begin
   Result := Copy(FARAPI.RootKey, 1, DelimiterLast(FARAPI.RootKey, cDelim) - 1);
 end;
+{$ENDIF}
 
 function TStringArray.GetString: TFarString;
 var

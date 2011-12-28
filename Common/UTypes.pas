@@ -6,12 +6,19 @@ interface
 
 uses
 {$IFDEF UNICODE}
+  {$IFDEF Far3}
+  Plugin3;
+  {$ELSE}
   PluginW;
+  {$ENDIF}
 {$ELSE}
   Plugin;
 {$ENDIF}
 
 var
+{$IFDEF Far3}
+  GlobalInfo: TGlobalInfo;
+{$ENDIF}
   FARAPI: TPluginStartupInfo;
   FSF: TFarStandardFunctions;
 
@@ -52,12 +59,20 @@ implementation
 
 function GetMsg(MsgId: Integer): PFarChar;
 begin
+{$IFDEF Far3}
+  Result:= FARAPI.GetMsg(GlobalInfo.Guid, Integer(MsgId));
+{$ELSE}
   Result:= FARAPI.GetMsg(FARAPI.ModuleNumber, Integer(MsgId));
+{$ENDIF}
 end;
 
 function GetMsgStr(MsgId: Integer): TFarString;
 begin
+{$IFDEF Far3}
+  Result:= FARAPI.GetMsg(GlobalInfo.Guid, Integer(MsgId));
+{$ELSE}
   Result:= FARAPI.GetMsg(FARAPI.ModuleNumber, Integer(MsgId));
+{$ENDIF}
 end;
 
 end.

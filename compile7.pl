@@ -66,7 +66,7 @@ undef $/;
 my $cfg = <CFG>;
 while ($cfg =~ s/^(-D.*)UNICODE[^;]*;?/$1/mi) {};
 while ($cfg =~ s/^(-D.*)Far[1-3];?/$1/mi) {};
-$cfg =~ s/^(-[UOIR].*)(FarAPI[^;]*)/$1FarAPI\\$UStr[$api]/mig;
+# $cfg =~ s/^(-[UOIR].*)(FarAPI[^;]*)/$1FarAPI\\$UStr[$api]/mig;
 $cfg =~ s/^-E.*$/-E"..\\Bin\\$UStr[$api]\\$appname"/mi;
 $cfg =~ s/^-N.*$/-N"..\\Dcu\\$UStr[$api]\\$appname"/mi;
 seek CFG, 0, 0;

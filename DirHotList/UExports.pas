@@ -7,7 +7,11 @@ interface
 uses
   Windows,
 {$IFDEF UNICODE}
+  {$IFDEF Far3}
+  Plugin3,
+  {$ELSE}
   PluginW,
+  {$ENDIF}
 {$ELSE}
   Plugin,
 {$ENDIF}
