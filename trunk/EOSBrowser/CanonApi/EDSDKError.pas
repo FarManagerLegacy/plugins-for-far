@@ -162,7 +162,6 @@ const
   EDS_ERR_HANDLE_NOT_FOUND              = $000000F2;    { Handle not found }
   EDS_ERR_INVALID_ID                    = $000000F3;    { Invalid ID }
   EDS_ERR_WAIT_TIMEOUT_ERROR            = $000000F4;    { Time out }
-  EDS_ERR_LAST_GENERIC_ERROR_PLUS_ONE   = $000000F5;    { Not used }
 
   { PTP }
 const
@@ -185,6 +184,7 @@ const
   EDS_ERR_SESSION_ALREADY_OPEN                      = $0000201E;
   EDS_ERR_TRANSACTION_CANCELLED                     = $0000201F;
   EDS_ERR_SPECIFICATION_OF_DESTINATION_UNSUPPORTED  = $00002020;
+  EDS_ERR_NOT_CAMERA_SUPPORT_SDK_VERSION            = $00002021;
 
 
  { PTP Vendor }
@@ -194,6 +194,7 @@ const
   EDS_ERR_LENS_COVER_CLOSE                          = $0000A006;
   EDS_ERR_LOW_BATTERY                        	    = $0000A101;
   EDS_ERR_OBJECT_NOTREADY			    = $0000A102;
+  EDS_ERR_CANNOT_MAKE_OBJECT                        = $0000A104;
 
 { Capture Error}
 const
@@ -205,9 +206,11 @@ const
   EDS_ERR_TAKE_PICTURE_NO_CARD_NG                    = $00008D06;
   EDS_ERR_TAKE_PICTURE_CARD_NG                       = $00008D07;
   EDS_ERR_TAKE_PICTURE_CARD_PROTECT_NG               = $00008D08;
+  EDS_ERR_TAKE_PICTURE_MOVIE_CROP_NG                 = $00008D09;
+  EDS_ERR_TAKE_PICTURE_STROBO_CHARGE_NG              = $00008D0A;
 
+  EDS_ERR_LAST_GENERIC_ERROR_PLUS_ONE                = $000000F5;
 
 implementation
 
 end.
-

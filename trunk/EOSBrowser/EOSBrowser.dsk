@@ -9,16 +9,16 @@ File_6=SourceModule,'W:\WORK\Delphi\plugins-for-far\FarAPI\Plugin.pas',0,1,618,8
 
 [Modules]
 Module0=W:\WORK\Delphi\plugins-for-far\FarAPI\Plugin3.pas
-Module1=W:\WORK\Delphi\plugins-for-far\Common\UDialogs.pas
-Module2=W:\WORK\Delphi\plugins-for-far\EOSBrowser\UCanon.pas
-Module3=W:\WORK\Delphi\plugins-for-far\EOSBrowser\UExport.pas
-Module4=W:\WORK\Delphi\plugins-for-far\Common\UDirNode.pas
-Module5=W:\WORK\Delphi\plugins-for-far\Common\UProgressBar.pas
-Module6=W:\WORK\Delphi\plugins-for-far\Common\UUtils.pas
-Module7=W:\WORK\Delphi\plugins-for-far\Common\UTypes.pas
-Module8=W:\WORK\Delphi\plugins-for-far\EOSBrowser\ULang.pas
-Module9=W:\WORK\Delphi\plugins-for-far\EOSBrowser\UEDialogs.pas
-Module10=W:\WORK\Delphi\plugins-for-far\FarAPI\PluginW.pas
+Module1=W:\WORK\Delphi\plugins-for-far\EOSBrowser\ULang.pas
+Module2=W:\WORK\Delphi\plugins-for-far\Common\UDialogs.pas
+Module3=W:\WORK\Delphi\plugins-for-far\EOSBrowser\UEDialogs.pas
+Module4=W:\WORK\Delphi\plugins-for-far\FarAPI\PluginW.pas
+Module5=W:\WORK\Delphi\plugins-for-far\Common\UTypes.pas
+Module6=W:\WORK\Delphi\plugins-for-far\Common\UDirNode.pas
+Module7=W:\WORK\Delphi\plugins-for-far\Common\UProgressBar.pas
+Module8=W:\WORK\Delphi\plugins-for-far\Common\UUtils.pas
+Module9=W:\WORK\Delphi\plugins-for-far\EOSBrowser\UCanon.pas
+Module10=W:\WORK\Delphi\plugins-for-far\EOSBrowser\UExport.pas
 Module11=W:\WORK\Delphi\plugins-for-far\EOSBrowser\EOSBrowser.dpr
 Count=12
 EditWindowCount=1
@@ -28,17 +28,27 @@ ModuleType=SourceModule
 FormState=0
 FormOnTop=0
 
+[W:\WORK\Delphi\plugins-for-far\EOSBrowser\ULang.pas]
+ModuleType=SourceModule
+FormState=0
+FormOnTop=0
+
 [W:\WORK\Delphi\plugins-for-far\Common\UDialogs.pas]
 ModuleType=SourceModule
 FormState=0
 FormOnTop=0
 
-[W:\WORK\Delphi\plugins-for-far\EOSBrowser\UCanon.pas]
+[W:\WORK\Delphi\plugins-for-far\EOSBrowser\UEDialogs.pas]
 ModuleType=SourceModule
 FormState=0
 FormOnTop=0
 
-[W:\WORK\Delphi\plugins-for-far\EOSBrowser\UExport.pas]
+[W:\WORK\Delphi\plugins-for-far\FarAPI\PluginW.pas]
+ModuleType=SourceModule
+FormState=0
+FormOnTop=0
+
+[W:\WORK\Delphi\plugins-for-far\Common\UTypes.pas]
 ModuleType=SourceModule
 FormState=0
 FormOnTop=0
@@ -58,22 +68,12 @@ ModuleType=SourceModule
 FormState=0
 FormOnTop=0
 
-[W:\WORK\Delphi\plugins-for-far\Common\UTypes.pas]
+[W:\WORK\Delphi\plugins-for-far\EOSBrowser\UCanon.pas]
 ModuleType=SourceModule
 FormState=0
 FormOnTop=0
 
-[W:\WORK\Delphi\plugins-for-far\EOSBrowser\ULang.pas]
-ModuleType=SourceModule
-FormState=0
-FormOnTop=0
-
-[W:\WORK\Delphi\plugins-for-far\EOSBrowser\UEDialogs.pas]
-ModuleType=SourceModule
-FormState=0
-FormOnTop=0
-
-[W:\WORK\Delphi\plugins-for-far\FarAPI\PluginW.pas]
+[W:\WORK\Delphi\plugins-for-far\EOSBrowser\UExport.pas]
 ModuleType=SourceModule
 FormState=0
 FormOnTop=0
